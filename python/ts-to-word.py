@@ -157,7 +157,7 @@ def set_transcript_text_style(run, force_highlight, confidence=0.0, rgb_color=No
         if confidence >= 0.90:
             run.font.color.rgb = RGBColor(0, 0, 0)
         elif confidence >= 0.5:
-            run.font.color.rgb = RGBColor(102, 51, 0)
+            run.font.color.rgb = RGBColor(255,165,0)
         else:
             run.font.color.rgb = RGBColor(255, 0, 0)
 
@@ -652,7 +652,7 @@ def write(cli_arguments, speech_segments, job_status, summaries_detected):
         write_custom_text_header(document, "Call Transcription")
         document.add_paragraph()  # Spacing
         write_small_header_text(document, "WORD CONFIDENCE: >= 90% in black, ", 0.9)
-        write_small_header_text(document, ">= 50% in brown, ", 0.5)
+        write_small_header_text(document, ">= 50% in orange, ", 0.5)
         write_small_header_text(document, "< 50% in red", 0.49)
         table_cols = 4
         if sentimentEnabled or cli_arguments.analyticsMode:
