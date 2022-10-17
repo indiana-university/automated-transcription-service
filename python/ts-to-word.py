@@ -25,6 +25,7 @@ from docx.oxml import parse_xml
 from pathlib import Path
 from time import perf_counter
 from scipy.interpolate import make_interp_spline
+from docx.oxml.shape import CT_Inline
 import urllib.request
 import json
 import datetime
@@ -61,7 +62,7 @@ MIN_SENTIMENT_POSITIVE = 0.6
 SENTIMENT_LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "ar", "hi", "ja", "ko", "zh-TW", "zh"]
 
 # Image download URLS
-IMAGE_URL_BANNER = "https://raw.githubusercontent.com/aws-samples/amazon-transcribe-output-word-document/main/images/banner.png"
+IMAGE_URL_BANNER = "https://assets.iu.edu/brand/3.3.x/trident-large.png"
 IMAGE_URL_SMILE = "https://raw.githubusercontent.com/aws-samples/amazon-transcribe-output-word-document/main/images/smile.png"
 IMAGE_URL_FROWN = "https://raw.githubusercontent.com/aws-samples/amazon-transcribe-output-word-document/main/images/frown.png"
 IMAGE_URL_NEUTRAL = "https://raw.githubusercontent.com/aws-samples/amazon-transcribe-output-word-document/main/images/neutral.png"
@@ -530,7 +531,9 @@ def write(cli_arguments, speech_segments, job_status, summaries_detected):
     custom_style.font.italic = True
 
     # Intro banner header
-    document.add_picture(load_image(IMAGE_URL_BANNER), width=Mm(171))
+    run = document.add_paragraph().add_run()
+    add_picture_to_run(run, load_image(IMAGE_URL_BANNER), width=Inches(0.25))
+    run.add_text("Social Science Research Commons")
 
     # Pull out header information - some from the JSON, but most only exists in the Transcribe job status
     if cli_arguments.analyticsMode:
@@ -1851,6 +1854,16 @@ def generate_document():
     # Finally, remove any temporary downloaded JSON results file
     if (cli_args.inputJob is not None) and (not cli_args.keep):
         os.remove(cli_args.inputFile)
+
+def add_picture_to_run(run, picture_file, width=None, height=None):
+    """
+    Add a picture at the end of a run.
+    """
+    rId, image = run.part.get_or_add_image(picture_file)
+    cx, cy = image.scaled_dimensions(width, height)
+    shape_id, filename = run.part.next_id, image.filename
+    inline = CT_Inline.new_pic_inline(shape_id, rId, filename, cx, cy)
+    run._r.add_drawing(inline)
 
 # Main entrypoint
 if __name__ == "__main__":
