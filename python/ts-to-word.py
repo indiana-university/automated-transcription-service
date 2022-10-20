@@ -533,7 +533,7 @@ def write(cli_arguments, speech_segments, job_status, summaries_detected):
     # Intro banner header
     run = document.add_paragraph().add_run()
     add_picture_to_run(run, load_image(IMAGE_URL_BANNER), width=Inches(0.25))
-    run.add_text("Social Science Research Commons")
+    run.add_text(" Social Science Research Commons")
 
     # Pull out header information - some from the JSON, but most only exists in the Transcribe job status
     if cli_arguments.analyticsMode:
