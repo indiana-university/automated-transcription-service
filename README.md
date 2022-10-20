@@ -10,6 +10,8 @@ Thus, we seek to provide a new service to IU researchers that will make audio tr
 
 This is guide for using a Python script in this project to generate a Word document from an AWS ATS json files. A pre-requisite of this guide is access to IU RED (https://kb.iu.edu/d/apum). These steps will install required Python libraries in the Users' space.
 
+Once this is complete it does not need to be repeated. Simply follow step #5 for executing the generation. If a developer changes the translate script step #6 may be used to update your local version.
+
 1. Open a `Terminal`. Hint: By default Paste is done via Shift+Ctrl+V, if in doubt check the menu of your Terminal
 2. Verify python3 is installed. This should return `Python 3.x.x`
 ```
@@ -24,11 +26,17 @@ python3 -m pip install --user --upgrade Pillow
 ```
 python3 -m pip install --user python-docx scipy matplotlib boto3
 ```
-4. Checkout this project. This will challenge for IU authentication. Instead of this command the project at this URL via Code -> Download ZIP
+4. Checkout this project. This will challenge for IU authentication
 ```
 git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
 ```
 5. Execute json to Word. The result will be dropped in the location of inputFile
 ```
 python3 ~/automated-transcription-service/python/ts-to-word.py --sentiment off --confidence on --inputFile <JSON_FILE>
+```
+6. (Optional) If a developer makes changes they can be picked up with the following command
+```
+cd automated-transcription-service; git pull
+<Challenge for IU authentication>
+cd ~/
 ```
