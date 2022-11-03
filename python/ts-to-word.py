@@ -285,6 +285,51 @@ def write_transcribe_text(output_table, sentiment_enabled, analytics_mode, speec
             keyed_categories.pop(end_in_millis)
 
 
+def write_transcribe_text_not_table(document, speech_segments):
+    for segment in speech_segments:
+        startTime = convert_timestamp(segment.segmentStartTime)
+        speaker = segment.segmentSpeaker
+
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run()
+        run.add_text(startTime + " " + speaker + ": ")
+        # TODO
+        content_col_offset = -1
+
+        # Summarised data blocks are in order - pick out the first for each of our
+        # types, as well as getting list of the remaining ones for this segment
+        issues, next_issue = setup_summarised_data(segment.segmentIssuesDetected)
+        actions, next_action = setup_summarised_data(segment.segmentActionItemsDetected)
+        outcomes, next_outcome = setup_summarised_data(segment.segmentOutcomesDetected)
+
+        # Then do each word with confidence-level colouring
+        text_index = 1
+        live_issue = False
+        live_action = False
+        live_outcome = False
+        for eachWord in segment.segmentConfidence:
+            run = paragraph.add_run()
+            # Look to start a new summary block if needed, in strict priority order - issues, actions, then outcomes.
+            # We cannot start a new one until an existing one finishes, so if 2 overlap (unlikely) we skip the second
+            live_issue = start_summary_run_highlight_no_table(content_col_offset, live_issue, live_action or live_outcome,
+                                                     next_issue, run, text_index, "[ISSUE]")
+            live_action = start_summary_run_highlight_no_table(content_col_offset, live_action, live_issue or live_outcome,
+                                                      next_action, run, text_index, "[ACTION]")
+            live_outcome = start_summary_run_highlight_no_table(content_col_offset, live_outcome, live_issue or live_action,
+                                                       next_outcome, run, text_index, "[OUTCOME]")
+
+            # Output the next word, with the correct confidence styling and forced background
+            run.add_text(eachWord["text"])
+            text_index += len(eachWord["text"])
+            confLevel = eachWord["confidence"]
+            set_transcript_text_style(run, live_issue or live_outcome or live_action, confidence=confLevel)
+
+            # Has any in-progress summarisation block now finished?  Check each one
+            live_issue, next_issue = stop_summary_run_highlight(issues, live_issue, next_issue, text_index)
+            live_action, next_action = stop_summary_run_highlight(actions, live_action, next_action, text_index)
+            live_outcome, next_outcome = stop_summary_run_highlight(outcomes, live_outcome, next_outcome, text_index)
+
+
 def stop_summary_run_highlight(summaries, live_summary, next_summary, text_index):
     """
     Checks the supplied flags to see that particular type of call summary - e.g. issues or actions - has
@@ -335,6 +380,40 @@ def start_summary_run_highlight(content_col_offset, this_summary, other_summarie
             else:
                 next_phrase = " " + output_phrase
             run = row_cells[COL_CONTENT + content_col_offset].paragraphs[0].add_run(next_phrase)
+            set_transcript_text_style(run, True, confidence=0.0)
+            new_summary = True
+
+    return new_summary
+
+
+def start_summary_run_highlight_no_table(content_col_offset, this_summary, other_summaries, next_summ_item, run,
+                                text_index, output_phrase):
+    """
+    This looks at a call summary data block to see if it has started - if it has then we output a
+    message with a highlight and set the text-run highlighting to continue.  If a summary block of
+    any other type is currently in-progress then we skip displaying this one, as in a Word document
+    the highlighting would be confusing and hard to do.
+
+    :param content_col_offset: Offset into the Word table so we can skip non-existent sentiment columns
+    :param this_summary: Flag indicating if a highlighting run for this type is already in progress
+    :param other_summaries: Flag indicating if a highlighting run for any other type is already in progress
+    :param next_summ_item: The next summary item to be considered for highlighting
+    :param row_cells: Cell reference in the Word table for the current speech segment
+    :param text_index: Text offset position for this segment what we've rendered up to
+    :param output_phrase: Phrase to use in the transcript to mark the start of this highighting run
+    """
+
+    new_summary = this_summary
+
+    if len(next_summ_item) > 0 and not this_summary and not other_summaries:
+        if (next_summ_item["Begin"] == 0 and text_index == 1) or (next_summ_item["Begin"] == text_index):
+            # If so, start the highlighting run, tagging on a leading/trailing
+            # highlight space depending on where were are in the segment
+            if text_index == 1:
+                next_phrase = output_phrase + " "
+            else:
+                next_phrase = " " + output_phrase
+            run.add_text(next_phrase)
             set_transcript_text_style(run, True, confidence=0.0)
             new_summary = True
 
@@ -674,8 +753,7 @@ def write(cli_arguments, speech_segments, job_status, summaries_detected):
         hdr_cells[COL_CONTENT + content_col_offset].text = "Transcription"
 
         # Based upon our segment list, write out the transcription table
-        write_transcribe_text(table, sentimentEnabled or cli_arguments.analyticsMode, cli_arguments.analyticsMode,
-                              speech_segments, keyed_categories)
+        write_transcribe_text_not_table(document, speech_segments)
         document.add_paragraph()
 
         # Formatting transcript table widths - we need to add sentiment
