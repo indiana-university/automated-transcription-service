@@ -24,7 +24,7 @@ python3 -m pip install --user --upgrade Pillow
 ```
 3. Install required libraries 
 ```
-python3 -m pip install --user python-docx scipy matplotlib boto3
+python3 -m pip install --user python-docx matplotlib boto3
 ```
 4. Checkout this project. This will challenge for IU authentication
 ```
@@ -32,7 +32,7 @@ git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
 ```
 5. Execute json to Word. The result will be dropped in the location of inputFile
 ```
-python3 ~/automated-transcription-service/python/ts-to-word.py --sentiment off --confidence on --inputFile <JSON_FILE>
+python3 ~/automated-transcription-service/python/ts-to-word.py --confidence on --inputFile <JSON_FILE>
 ```
 6. (Optional) If a developer makes changes they can be picked up with the following command
 ```
