@@ -37,6 +37,11 @@ docker push <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/ats:latest
 
 ## Part II: Deploy infrastructure
 
+The deployment is set up to store remote state in an S3 bucket, so begin by creating that bucket:
+```
+aws s3 mb s3://<TF_STATE_BUCKET_NAME>
+```
+
 Switch to the `terraform` directory:
 
 ```
@@ -51,10 +56,10 @@ mv ats.auto.tfvars.template ats.auto.tfvars
 
 Edit the variables in the auto.tfvars as necessary.
 
-Run `terraform init` to download the necessary provider(s):
+Run `terraform init` to download the necessary provider(s). Note that you must provide the name of remote state bucket created above:
 
 ```
-terraform init
+terraform init -backend-config="bucket=<TF_STATE_BUCKET_NAME>"
 ```
 
 Now run `terraform plan` to preview the deployment:
