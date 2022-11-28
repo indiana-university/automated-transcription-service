@@ -1,7 +1,7 @@
 import boto3
 from urllib.parse import urlparse
 from urllib.request import urlopen
-from urllib.request import urlretrieve
+from urllib.request import urlretrieve, Request
 import json
 from datetime import timedelta
 from datetime import datetime as dt
@@ -33,6 +33,9 @@ IMAGE_URL_BANNER = "https://assets.iu.edu/brand/3.3.x/trident-large.png"
 # Additional Constants
 START_NEW_SEGMENT_DELAY = 2.0       # After n seconds pause by one speaker, put next speech in new segment
 
+# Teams webhook
+WEBHOOK_URL = os.environ['WEBHOOK_URL']
+
 class SpeechSegment:
     """ Class to hold information about a single speech segment """
     def __init__(self):
@@ -61,6 +64,19 @@ s3 = boto3.client('s3')
 
 # Transcribe client to read job results
 ts_client = boto3.client('transcribe')
+
+def notify_teams(text):
+    """
+    Sends a message to a Teams channel
+    :param text: text of message to send
+    """
+    message = {"text": text}
+    request_data = json.dumps(message).encode("utf-8")
+    req = Request(url=WEBHOOK_URL, data=request_data, method='POST')
+    try:
+        urlopen(req)
+    except Exception as e:
+        print(e)
 
 def convert_timestamp(time_in_seconds):
     """
@@ -758,6 +774,9 @@ def docx_handler(event, context):
             print(f"Failed to upload file {output_file} to S3 bucket {bucket}")
             batch_failures.append({"itemIdentifier": message_id})
             continue
+
+        # Send message to Teams channel
+        notify_teams(f"<pre>Transcription job {job_name} completed. Transcript available at S3://{bucket}/{key}.</pre>")
 
     # Send failed messages back to queue for retry
     sqs_response = {}
