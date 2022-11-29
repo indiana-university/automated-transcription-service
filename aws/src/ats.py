@@ -743,18 +743,16 @@ def docx_handler(event, context):
         
         # Check the job settings for speaker/channel ID
         if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
-            isChannelMode = True
-            speech_segments = create_turn_by_turn_segments(transcript, isChannelMode)
+            speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
         elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
-            isSpeakerMode = True
-            speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode)
+            speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
         else:
             # TODO: Handle non-speaker mode
             # We do not support non-speaker mode in this version
             # Note: message will be deleted from the queue
             print(f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version.")
             continue
-        
+
         # Write out the file
         os.chdir("/tmp")
         output_file = job_info["TranscriptionJobName"] + ".docx"
@@ -894,11 +892,9 @@ def generate_document():
     # Confirm that we have speaker or channel information then generate the core transcript
     start = perf_counter()
     if "channel_labels" in json_data["results"]:
-        isChannel = True
-        speech_segments = create_turn_by_turn_segments(json_data, isChannel)
+        speech_segments = create_turn_by_turn_segments(json_data, isChannelMode = True))
     elif "speaker_labels" in json_data["results"]:
-        isSpeaker = True
-        speech_segments = create_turn_by_turn_segments(json_data, isSpeaker)
+        speech_segments = create_turn_by_turn_segments(json_data, isSpeakerMode = True))
     else:
         print("FAIL: No speaker or channel information found in JSON file.")
         exit(-1)
