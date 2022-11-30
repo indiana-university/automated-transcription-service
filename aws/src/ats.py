@@ -390,7 +390,8 @@ def write(data, speech_segments, job_info, output_file):
 
     # Some information is only in the job info
     if job_info is not None:
-        job_data.append({"name": "Language", "value": job_info["LanguageCode"]})
+        if "LanguageCode" in job_info:
+            job_data.append({"name": "Language", "value": job_info["LanguageCode"]})
         job_data.append({"name": "File Format", "value": job_info["MediaFormat"]})
         job_data.append({"name": "Sample Rate", "value": str(job_info["MediaSampleRateHertz"]) + " Hz"})
         job_data.append({"name": "Job Created", "value": job_info["CreationTime"].strftime("%a %d %b '%y at %X")})
@@ -892,9 +893,9 @@ def generate_document():
     # Confirm that we have speaker or channel information then generate the core transcript
     start = perf_counter()
     if "channel_labels" in json_data["results"]:
-        speech_segments = create_turn_by_turn_segments(json_data, isChannelMode = True))
+        speech_segments = create_turn_by_turn_segments(json_data, isChannelMode = True)
     elif "speaker_labels" in json_data["results"]:
-        speech_segments = create_turn_by_turn_segments(json_data, isSpeakerMode = True))
+        speech_segments = create_turn_by_turn_segments(json_data, isSpeakerMode = True)
     else:
         print("FAIL: No speaker or channel information found in JSON file.")
         exit(-1)
