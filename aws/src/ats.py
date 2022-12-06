@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import argparse
 from pathlib import Path
 from time import perf_counter
+import uuid
 
 # Common formats and styles
 CUSTOM_STYLE_HEADER = "CustomHeader"
@@ -693,6 +694,53 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False)
     # Return our full turn-by-turn speaker segment list
     return speechSegmentList
 
+def transcribe_handler(event, context):
+    """
+    Entrypoint for the transcribe Lambda function. Pulls batch of messages from SQS standard queue.
+    """
+    print(f"transcribe_handler started")
+
+    s3bucketOutput = os.environ["BUCKET"]
+    batch_failures = []
+    for record in event["Records"]:
+        event_message = json.loads(record["body"])
+        print(f"Event message: {event_message}")
+
+        recordZero = event_message['Records'][0]
+        s3object = recordZero['s3']['object']['key']
+        s3bucketInput = recordZero['s3']['bucket']['name']
+
+        s3Path = "s3://" + s3bucketInput + "/" + s3object
+        jobName = s3object + '-' + str(uuid.uuid4())
+
+        try:
+            response = ts_client.start_transcription_job(
+                TranscriptionJobName=jobName,
+                Settings={
+                    'ShowSpeakerLabels': True,
+                    'MaxSpeakerLabels': 10,
+                },
+                IdentifyMultipleLanguages=True,
+                Media={
+                    'MediaFileUri': s3Path
+                },
+                OutputBucketName = s3bucketOutput,
+                OutputKey = today + "/"
+            )
+        except Exception as e:
+            print(e)
+            notify_teams(os.environ['WEBHOOK_URL'], f"<pre>FAILED Transcription job {jobName}. Please review CloudWatch</pre>")
+            batch_failures.append({"itemIdentifier": record["messageId"]})
+            continue
+
+    # Send failed messages back to queue for retry
+    sqs_response = {}
+    if len(batch_failures) > 0:
+        sqs_response["batchItemFailures"] = batch_failures
+
+    print(f"Function ending. Response={sqs_response}")
+    return sqs_response
+
 def docx_handler(event, context):
     """
     Entrypoint for the Lambda function. Pulls batch of messages from SQS standard queue.
@@ -701,6 +749,7 @@ def docx_handler(event, context):
 
     # Process messages in batch
     batch_failures = []
+    webhook = os.environ['WEBHOOK_URL']
     for record in event["Records"]:
         
         # The EventBridge message is stored in "body" field
@@ -710,12 +759,12 @@ def docx_handler(event, context):
         # If the job failed, there is nothing for us to do here
         # Note: message will be deleted from queue
         job_status = event_message["detail"]["TranscriptionJobStatus"]
+        job_name = event_message["detail"]["TranscriptionJobName"]
         if job_status == "FAILED":
+            notify_teams(webhook, f"<pre>FAILED Transcription job {job_name}. Please review CloudWatch</pre>")
             continue
 
-        # Get job name
         message_id = record["messageId"]
-        job_name = event_message["detail"]["TranscriptionJobName"]
 
         # Attempt to retrieve job details
         try:
@@ -772,7 +821,6 @@ def docx_handler(event, context):
             continue
 
         # Send message to Teams channel
-        webhook = os.environ['WEBHOOK_URL']
         notify_teams(webhook, f"<pre>Transcription job {job_name} completed. Transcript available at S3://{bucket}/{key}.</pre>")
 
     # Send failed messages back to queue for retry
@@ -781,9 +829,6 @@ def docx_handler(event, context):
         sqs_response["batchItemFailures"] = batch_failures
     print(f"Function ending. Response={sqs_response}")
     return sqs_response
-
-#TODO: create handler for Transcribe job(s), e.g.,:
-# def transcribe_handler():
 
 def load_transcribe_job_status(cli_args):
     """
