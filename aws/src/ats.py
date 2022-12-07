@@ -1,5 +1,5 @@
 import boto3
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote_plus
 from urllib.request import urlopen
 from urllib.request import urlretrieve, Request
 import json
@@ -22,6 +22,7 @@ import argparse
 from pathlib import Path
 from time import perf_counter
 import uuid
+import re
 
 # Common formats and styles
 CUSTOM_STYLE_HEADER = "CustomHeader"
@@ -707,11 +708,12 @@ def transcribe_handler(event, context):
         print(f"Event message: {event_message}")
 
         recordZero = event_message['Records'][0]
-        s3object = recordZero['s3']['object']['key']
+        # unquote_plus to handle spaces
+        s3object = unquote_plus(recordZero['s3']['object']['key'])
         s3bucketInput = recordZero['s3']['bucket']['name']
 
         s3Path = "s3://" + s3bucketInput + "/" + s3object
-        jobName = s3object + '-' + str(uuid.uuid4())
+        jobName = re.sub('[^a-zA-Z0-9_\-.]+','_', s3object) + '-' + str(uuid.uuid4())
 
         try:
             response = ts_client.start_transcription_job(
