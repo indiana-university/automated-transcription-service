@@ -433,7 +433,7 @@ def write(data, speech_segments, job_info, output_file):
         section_ptr = document.sections[-1]._sectPr
         cols = section_ptr.xpath('./w:cols')[0]
         cols.set(qn('w:num'), '1')
-        write_custom_text_header(document, "This call had no audible speech to transcribe.")
+        write_custom_text_header(document, "This file had no audible speech to transcribe.")
     else:
         # Process and display transcript by speaker segments (new section)
         # -- Conversation "turn" start time and duration
@@ -442,7 +442,7 @@ def write(data, speech_segments, job_info, output_file):
         section_ptr = document.sections[-1]._sectPr
         cols = section_ptr.xpath('./w:cols')[0]
         cols.set(qn('w:num'), '1')
-        write_custom_text_header(document, "Call Transcription")
+        write_custom_text_header(document, "Audio Transcription")
         document.add_paragraph()  # Spacing
         write_small_header_text(document, "WORD CONFIDENCE: >= 90% in black, ", 0.9)
         write_small_header_text(document, ">= 50% in red, ", 0.5)
