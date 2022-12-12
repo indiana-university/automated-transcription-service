@@ -28,6 +28,9 @@ import re
 CUSTOM_STYLE_HEADER = "CustomHeader"
 TABLE_STYLE_STANDARD = "Light List"
 ALTERNATE_ROW_COLOUR = "F0F0F0"
+RED = "FF0000"
+YELLOW = "FFFF00"
+GREEN = "00FF00"
 
 # Image download URLS
 IMAGE_URL_BANNER = "https://assets.iu.edu/brand/3.3.x/trident-large.png"
@@ -64,16 +67,23 @@ s3 = boto3.client('s3')
 # Transcribe client to read job results
 ts_client = boto3.client('transcribe')
 
-def notify_teams(webhook, text):
+def notify_teams(webhook, title, content, color="000000") -> int:
     """
     Sends a message to a Teams channel
-    :param text: text of message to send
+    webhook: URL for Teams webhook
+    title: title of message
+    content: message content
+    color: color of line to include in message
+    RED     0000FF
+    YELLOW  FFFF00
+    GREEN   00FF00
     """
-    message = {"text": text}
+    message = {"themeColor": color, "summary": title, "sections": [{"activityTitle": title, "activitySubtitle": content}]}
     request_data = json.dumps(message).encode("utf-8")
-    req = Request(url=webhook, data=request_data, method='POST')
+    req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
     try:
-        urlopen(req)
+        r = urlopen(req)
+        return r.status
     except Exception as e:
         print(e)
 
@@ -763,7 +773,12 @@ def docx_handler(event, context):
         job_status = event_message["detail"]["TranscriptionJobStatus"]
         job_name = event_message["detail"]["TranscriptionJobName"]
         if job_status == "FAILED":
-            notify_teams(webhook, f"<pre>FAILED Transcription job {job_name}. Please review CloudWatch</pre>")
+            title = "Transcription job failed"
+            message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
+            color = RED
+            http_response = notify_teams(webhook, title, message, color)
+            if http_response != 200:
+                print(f"Failed to notify Teams. Response: {http_response}")
             continue
 
         message_id = record["messageId"]
@@ -823,7 +838,12 @@ def docx_handler(event, context):
             continue
 
         # Send message to Teams channel
-        notify_teams(webhook, f"<pre>Transcription job {job_name} completed. Transcript available at S3://{bucket}/{key}.</pre>")
+        title = "Transcription job completed"
+        message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{bucket}/{key}</pre>"
+        color = GREEN
+        http_response = notify_teams(webhook, title, message, color)
+        if http_response != 200:
+            print(f"Failed to notify Teams. Response: {http_response}")
 
     # Send failed messages back to queue for retry
     sqs_response = {}
