@@ -765,11 +765,22 @@ def docx_handler(event, context):
     """
     print("Function started.")
 
+    # Get environment variables
+    TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
+    WEBHOOK = os.environ['WEBHOOK_URL']         # Teams webhook URL
+    BUCKET = os.environ["BUCKET"]               # S3 output bucket name
+
     # Process messages in batch
     batch_failures = []
-    webhook = os.environ['WEBHOOK_URL']
     for record in event["Records"]:
-        
+
+        message_id = record["messageId"]
+        # Make sure there is enough time to process this message
+        if context.get_remaining_time_in_millis() < TIMEOUT:
+            print(f"Not enough time to process this message: {message_id}")
+            batch_failures.append({"itemIdentifier": message_id})
+            continue
+
         # The EventBridge message is stored in "body" field
         event_message = json.loads(record["body"])
         print(f"Event message: {event_message}")
@@ -782,12 +793,10 @@ def docx_handler(event, context):
             title = "Transcription job failed"
             message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            http_response = notify_teams(webhook, title, message, color)
+            http_response = notify_teams(WEBHOOK, title, message, color)
             if http_response != 200:
                 print(f"Failed to notify Teams. Response: {http_response}")
             continue
-
-        message_id = record["messageId"]
 
         # Attempt to retrieve job details
         try:
@@ -833,21 +842,20 @@ def docx_handler(event, context):
 
         # Upload file to S3
         # Use bucket provided in the environment variable, plus today's date
-        bucket = os.environ["BUCKET"]
         key = today + "/" + output_file
         try:
-            s3.upload_file(output_file, bucket, key)
+            s3.upload_file(output_file, BUCKET, key)
         except Exception as e:
             print(e)
-            print(f"Failed to upload file {output_file} to S3 bucket {bucket}")
+            print(f"Failed to upload file {output_file} to S3 bucket {BUCKET}")
             batch_failures.append({"itemIdentifier": message_id})
             continue
 
         # Send message to Teams channel
         title = "Transcription job completed"
-        message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{bucket}/{key}</pre>"
+        message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
         color = GREEN
-        http_response = notify_teams(webhook, title, message, color)
+        http_response = notify_teams(WEBHOOK, title, message, color)
         if http_response != 200:
             print(f"Failed to notify Teams. Response: {http_response}")
 
