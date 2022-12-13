@@ -712,6 +712,7 @@ def transcribe_handler(event, context):
     print(f"transcribe_handler started")
 
     s3bucketOutput = os.environ["BUCKET"]
+    webhook = os.environ['WEBHOOK_URL']
     batch_failures = []
     for record in event["Records"]:
         event_message = json.loads(record["body"])
@@ -741,7 +742,12 @@ def transcribe_handler(event, context):
             )
         except Exception as e:
             print(e)
-            notify_teams(os.environ['WEBHOOK_URL'], f"<pre>FAILED Transcription job {jobName}. Please review CloudWatch</pre>")
+            title = "Could not start transcription job"
+            message = f"File name:<br><pre>{s3Path}</pre><br>Please review CloudWatch logs for more details."
+            color = RED
+            http_response = notify_teams(webhook, title, message, color)
+            if http_response != 200:
+                print(f"Failed to notify Teams. Response: {http_response}")
             batch_failures.append({"itemIdentifier": record["messageId"]})
             continue
 
