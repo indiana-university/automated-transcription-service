@@ -402,21 +402,33 @@ def write(data, speech_segments, job_info, output_file):
 
     # Some information is only in the job info
     if job_info is not None:
-        if "LanguageCode" in job_info:
+        if "LanguageCode" in job_info: # AWS sample job_info
             job_data.append({"name": "Language", "value": job_info["LanguageCode"]})
-        job_data.append({"name": "File Format", "value": job_info["MediaFormat"]})
-        job_data.append({"name": "Sample Rate", "value": str(job_info["MediaSampleRateHertz"]) + " Hz"})
-        job_data.append({"name": "Job Created", "value": job_info["CreationTime"].strftime("%a %d %b '%y at %X")})
-        if "ContentRedaction" in job_info["Settings"]:
-            redact_type = job_info["Settings"]["ContentRedaction"]["RedactionType"]
-            redact_output = job_info["Settings"]["ContentRedaction"]["RedactionOutput"]
-            job_data.append({"name": "Redaction Mode", "value": redact_type + " [" + redact_output + "]"})
-        if "VocabularyFilterName" in job_info["Settings"]:
-            vocab_filter = job_info["Settings"]["VocabularyFilterName"]
-            vocab_method = job_info["Settings"]["VocabularyFilterMethod"]
-            job_data.append({"name": "Vocabulary Filter", "value": vocab_filter + " [" + vocab_method + "]"})
-        if "VocabularyName" in job_info["Settings"]:
-            job_data.append({"name": "Custom Vocabulary", "value": job_info["Settings"]["VocabularyName"]})
+        elif "LanguageCodes" in job_info: # AWS job_info
+            languages = []
+            for language in job_info["LanguageCodes"]: languages.append(language["LanguageCode"] + " ")
+            job_data.append({"name": "Language(s)", "value": languages})
+        elif "language_codes" in job_info: # json job_info
+            languages = []
+            for language in job_info["language_codes"]: languages.append(language["language_code"] + " ")
+            job_data.append({"name": "Language(s)", "value": languages})
+        if "MediaFormat" in job_info:
+            job_data.append({"name": "File Format", "value": job_info["MediaFormat"]})
+        if "MediaSampleRateHertz" in job_info:
+            job_data.append({"name": "Sample Rate", "value": str(job_info["MediaSampleRateHertz"]) + " Hz"})
+        if "CreationTime" in job_info:
+            job_data.append({"name": "Job Created", "value": job_info["CreationTime"].strftime("%a %d %b '%y at %X")})
+        if "Settings" in job_info:
+            if "ContentRedaction" in job_info["Settings"]:
+                redact_type = job_info["Settings"]["ContentRedaction"]["RedactionType"]
+                redact_output = job_info["Settings"]["ContentRedaction"]["RedactionOutput"]
+                job_data.append({"name": "Redaction Mode", "value": redact_type + " [" + redact_output + "]"})
+            if "VocabularyFilterName" in job_info["Settings"]:
+                vocab_filter = job_info["Settings"]["VocabularyFilterName"]
+                vocab_method = job_info["Settings"]["VocabularyFilterMethod"]
+                job_data.append({"name": "Vocabulary Filter", "value": vocab_filter + " [" + vocab_method + "]"})
+            if "VocabularyName" in job_info["Settings"]:
+                job_data.append({"name": "Custom Vocabulary", "value": job_info["Settings"]["VocabularyName"]})
 
     # Finish with the confidence scores (if we have any)
     stats = generate_confidence_stats(speech_segments)
@@ -969,7 +981,10 @@ def generate_document():
             cli_args.inputJob = None
             cli_args.outputFile = cli_args.inputFile + ".docx"
             cli_args.analyticsMode = "results" not in json_data
-            job_info = None
+            if "language_codes" in json_data["results"]:
+                job_info = {'language_codes': json_data["results"]["language_codes"]}
+            else:
+                job_info = None
 
     # Confirm that we have speaker or channel information then generate the core transcript
     start = perf_counter()
