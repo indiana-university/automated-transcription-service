@@ -164,3 +164,6 @@ override.tf.json
 # Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
 #
 # example: *tfplan*
+
+#Avoid picking up any .DS_Store files from Mac OS
+.DS_Store

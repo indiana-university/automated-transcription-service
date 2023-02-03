@@ -1,6 +1,6 @@
 # AWS deployment code for Automated Transcription Service (ATS)
 
-## Part 1: Build and push the container image
+## Part I: Build and push the container image
 
 Begin by creating an ECR repository:
 
@@ -54,12 +54,12 @@ Rename the auto.tfvars template:
 mv ats.auto.tfvars.template ats.auto.tfvars
 ```
 
-Edit the variables in the auto.tfvars as necessary.
+Edit the variables in the ats.auto.tfvars as necessary.
 
-Run `terraform init` to download the necessary provider(s). Note that you must provide the name of remote state bucket created above:
+Run `terraform init` to download the necessary provider(s). Note that you must provide the name of remote state bucket created above. If you are not using the default AWS profile for access then you should also include an AWS named profile:
 
 ```
-terraform init -backend-config="bucket=<TF_STATE_BUCKET_NAME>"
+terraform init -backend-config="bucket=<TF_STATE_BUCKET_NAME>" -backend-config="profile=<AWS named profile>"
 ```
 
 Now run `terraform plan` to preview the deployment:

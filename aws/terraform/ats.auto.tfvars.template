@@ -1,2 +1,12 @@
-config = ""
-credentials = ""
+config           = [""] #path to AWS config file, e.g. ~/.aws/config
+credentials      = [""] #path to AWS credentials file, e.g. ~/.aws/crednetials
+profile          = "default" #name of AWS credentials profile
+region           = "us-east-1" #AWS region
+mpl              = "/tmp" #Temp path for Matplotlib
+webhook          = "" #URL for Teams webhook
+prefix           = "ats" #Prefix used for naming resources
+lambda_docx      = "transcribe-to-docx" #Name of transcribe-to-docx Lambda function
+lambda_ts        = "audio-to-transcribe" #Name of audio-to-transcribe Lambda function
+docx_timeout     = 300000 #Number of milliseconds for timeout threshold in transcribe-to-docx Lambda function
+transcribe_queue = "transcribe-to-docx" #Name for SQS queue used by transcribe-to-docx Lambda function
+audio_queue      = "audio-to-transcribe" #Name for SQS queue used by audio-to-transcribe Lambda function
