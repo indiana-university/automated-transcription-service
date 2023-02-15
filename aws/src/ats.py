@@ -83,6 +83,8 @@ def notify_teams(webhook, title, content, color="000000") -> int:
     req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
     try:
         r = urlopen(req)
+        if http_response != 200:
+            print(f"Failed to notify Teams. Response: {http_response}")
         return r.status
     except Exception as e:
         print(e)
@@ -488,22 +490,29 @@ def write(data, speech_segments, job_info, output_file):
     for filename in tempFiles:
         os.remove(filename)
 
-def find_bucket_key(s3_url):
+def find_bucket_key(s3_url_or_uri):
     """
     This is a helper function that given an s3 path such that the path is of
     the form:
         1) https://s3.region-code.amazonaws.com/bucket-name/key-name
         2) https://s3.us-east-1.amazonaws.com/aws-transcribe-us-east-1-prod/123456789012/my_job_name/g6574f2d-3g7a-4vwt-8q95-605d144c9288/asrOutput.json?X-Amz-Security-Token...
+        3) s3://s3.region-code.amazonaws.com/key-name
     It will return the bucket and the key represented by the s3 path, as well as the query string (if one exists)
     """
-    s3_path = urlparse(s3_url)
-    s3_qs = s3_path.query
-    s3_components = s3_path.path.split('/')
-    s3_bucket = s3_components[1]
-    s3_key = ""
-    if len(s3_components) > 1:
-        s3_key = '/'.join(s3_components[2:])
-    return s3_bucket, s3_key, s3_qs
+    if 's3://' in s3_url_or_uri:
+        path_parts=s3_url_or_uri.replace("s3://","").split("/")
+        bucket=path_parts.pop(0)
+        key="/".join(path_parts)
+        return bucket, key
+    else:
+        s3_path = urlparse(s3_url_or_uri)
+        s3_qs = s3_path.query
+        s3_components = s3_path.path.split('/')
+        s3_bucket = s3_components[1]
+        s3_key = ""
+        if len(s3_components) > 1:
+            s3_key = '/'.join(s3_components[2:])
+        return s3_bucket, s3_key, s3_qs
 
 def get_json(download_url):
     bucket, key, qs = find_bucket_key(download_url)
@@ -724,7 +733,7 @@ def transcribe_handler(event, context):
     print(f"transcribe_handler started")
 
     s3bucketOutput = os.environ["BUCKET"]
-    webhook = os.environ['WEBHOOK_URL']
+    WEBHOOK = os.environ['WEBHOOK_URL']
     batch_failures = []
     for record in event["Records"]:
         event_message = json.loads(record["body"])
@@ -757,9 +766,7 @@ def transcribe_handler(event, context):
             title = "Could not start transcription job"
             message = f"File name:<br><pre>{s3Path}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            http_response = notify_teams(webhook, title, message, color)
-            if http_response != 200:
-                print(f"Failed to notify Teams. Response: {http_response}")
+            http_response = notify_teams(WEBHOOK, title, message, color)
             batch_failures.append({"itemIdentifier": record["messageId"]})
             continue
 
@@ -806,8 +813,6 @@ def docx_handler(event, context):
             message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
             color = RED
             http_response = notify_teams(WEBHOOK, title, message, color)
-            if http_response != 200:
-                print(f"Failed to notify Teams. Response: {http_response}")
             continue
 
         # Attempt to retrieve job details
@@ -820,7 +825,7 @@ def docx_handler(event, context):
             print(e)
             print(f"Failed to retrieve job details for {job_name}")
             continue
-        
+
         # Try and download the transcript JSON
         if "RedactedTranscriptFileUri" in job_info["Transcript"]:
             download_url = job_info["Transcript"]["RedactedTranscriptFileUri"]
@@ -834,7 +839,7 @@ def docx_handler(event, context):
             print(f"Failed to download transcript for {job_name}")
             batch_failures.append({"itemIdentifier": message_id})
             continue
-        
+
         # Check the job settings for speaker/channel ID
         if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
             speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
@@ -868,14 +873,23 @@ def docx_handler(event, context):
         message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
         color = GREEN
         http_response = notify_teams(WEBHOOK, title, message, color)
-        if http_response != 200:
-            print(f"Failed to notify Teams. Response: {http_response}")
 
     # Send failed messages back to queue for retry
     sqs_response = {}
     if len(batch_failures) > 0:
         sqs_response["batchItemFailures"] = batch_failures
     print(f"Function ending. Response={sqs_response}")
+
+    # Delete upload file
+    upload_uri = job_info["Media"]["MediaFileUri"]
+    upload_bucket, upload_key = find_bucket_key(upload_uri)
+    print(f"Deleting from bucket {upload_bucket} key {upload_key}")
+    try:
+        s3.delete_object(Bucket=upload_bucket, Key=upload_key)
+    except Exception as e:
+        print(e)
+        notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
+
     return sqs_response
 
 def load_transcribe_job_status(cli_args):

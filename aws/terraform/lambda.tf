@@ -36,6 +36,7 @@ resource "aws_iam_policy" "lambda_docx" {
           "Action" : [
             "sqs:DeleteMessage",
             "s3:PutObject",
+            "s3:DeleteObject",
             "s3:GetObject",
             "transcribe:GetTranscriptionJob",
             "logs:CreateLogStream",
@@ -49,7 +50,9 @@ resource "aws_iam_policy" "lambda_docx" {
             "${aws_cloudwatch_log_group.transcribe_to_docx.arn}:*",
             aws_sqs_queue.transcribe_to_docx.arn,
             "${aws_s3_bucket.download.arn}/*",
-            aws_s3_bucket.download.arn
+            aws_s3_bucket.download.arn,
+            "${aws_s3_bucket.upload.arn}/*",
+            aws_s3_bucket.upload.arn
           ]
         },
         {
