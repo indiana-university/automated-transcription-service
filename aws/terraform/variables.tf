@@ -74,3 +74,8 @@ variable "download" {
   description = "download bucket"
   type = string
 }
+
+variable "retention_days" {
+  description = "Number of days to keep download bucket files"
+  type = number
+}

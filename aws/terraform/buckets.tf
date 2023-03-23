@@ -23,3 +23,18 @@ resource "aws_s3_bucket_public_access_block" "ublock" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "download-lifecycle" {
+  bucket = aws_s3_bucket.download.id
+  rule {
+      id = "${var.prefix}-download-lifecycle-expire"
+
+      filter {}
+
+      expiration {
+        days = var.retention_days
+      }
+
+      status = "Enabled"
+  }
+}
