@@ -74,3 +74,20 @@ Finally, run `terraform apply` to actually deploy the components of the applicat
 terraform apply
 ```
 
+## Retrieving files from S3
+
+The AWS web console does not allow downloading multiple files at once. There are ways to get around that:
+
+* Use the AWS CLI
+
+All files in the S3 bucket
+```
+aws s3 cp s3://bl-ssrc-ats-download-20221110204121545700000002 ~/Downloads --recursive
+```
+or a specific folder
+```
+aws s3 cp s3://bl-ssrc-ats-download-20221110204121545700000002/20230324 ~/Downloads --recursive
+```
+There are also ways to include / exclude files using the `--exclude` and `--include` flags. See https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html for more details.
+
+* If using AWS CLI is not viable the AWS web console allows multi select and using "Open" which barring popup blockers and depending on the file type will open the files in new tabs and download them
