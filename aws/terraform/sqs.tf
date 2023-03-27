@@ -1,5 +1,5 @@
 resource "aws_sqs_queue" "transcribe_to_docx" {
-  name                              = var.transcribe_queue
+  name                              = "${var.lambda_docx}-queue"
   receive_wait_time_seconds         = 20
   content_based_deduplication       = false
   delay_seconds                     = 0
@@ -44,7 +44,7 @@ resource "aws_sqs_queue_policy" "transcribe_to_docx" {
 }
 
 resource "aws_sqs_queue" "audio_to_transcribe" {
-  name                              = var.audio_queue
+  name                              = "${var.lambda_ts}-queue"
   content_based_deduplication       = false
   delay_seconds                     = 0
   fifo_queue                        = false
@@ -94,7 +94,7 @@ resource "aws_sqs_queue_policy" "audio_to_transcribe" {
 }
 
 resource "aws_sqs_queue" "transcribe_to_docx_dlq" {
-  name                              = "${var.transcribe_queue}-dlq"
+  name                              = "${var.lambda_docx}-dlq"
   content_based_deduplication       = false
   delay_seconds                     = 0
   fifo_queue                        = false
@@ -130,7 +130,7 @@ resource "aws_sqs_queue_policy" "transcribe_to_docx_dlq" {
 }
 
 resource "aws_sqs_queue" "audio_to_transcribe_dlq" {
-  name                              = "${var.audio_queue}-dlq"
+  name                              = "${var.lambda_ts}-dlq"
   content_based_deduplication       = false
   delay_seconds                     = 0
   fifo_queue                        = false

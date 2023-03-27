@@ -35,16 +35,6 @@ variable "prefix" {
   type        = string
 }
 
-variable "transcribe_queue" {
-  description = "Name of Transcribe-to-docx queue"
-  type        = string
-}
-
-variable "audio_queue" {
-  description = "Name of Audio-to-Transcribe queue"
-  type        = string
-}
-
 variable "lambda_docx" {
   description = "name of the lambda ts-to-docx function"
   type        = string
@@ -65,17 +55,7 @@ variable "account" {
   type        = string
 }
 
-variable "upload" {
-  description = "upload bucket"
-  type = string
-}
-
-variable "download" {
-  description = "download bucket"
-  type = string
-}
-
 variable "retention_days" {
   description = "Number of days to keep download bucket files"
-  type = number
+  type        = number
 }

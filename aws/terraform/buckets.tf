@@ -27,14 +27,14 @@ resource "aws_s3_bucket_public_access_block" "ublock" {
 resource "aws_s3_bucket_lifecycle_configuration" "download-lifecycle" {
   bucket = aws_s3_bucket.download.id
   rule {
-      id = "${var.prefix}-download-lifecycle-expire"
+    id = "${var.prefix}-download-lifecycle-expire"
 
-      filter {}
+    filter {}
 
-      expiration {
-        days = var.retention_days
-      }
+    expiration {
+      days = var.retention_days
+    }
 
-      status = "Enabled"
+    status = "Enabled"
   }
 }
