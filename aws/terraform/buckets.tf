@@ -38,3 +38,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "download-lifecycle" {
     status = "Enabled"
   }
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "upload-lifecycle" {
+  bucket = aws_s3_bucket.upload.id
+  rule {
+    id = "${var.prefix}-upload-lifecycle-expire"
+
+    filter {}
+
+    expiration {
+      days = var.retention_days
+    }
+
+    status = "Enabled"
+  }
+}
