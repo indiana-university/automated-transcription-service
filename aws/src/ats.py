@@ -868,6 +868,17 @@ def docx_handler(event, context):
             batch_failures.append({"itemIdentifier": message_id})
             continue
 
+        # Delete upload file
+        if job_status == "COMPLETED":
+            upload_uri = job_info["Media"]["MediaFileUri"]
+            upload_bucket, upload_key = find_bucket_key(upload_uri)
+            print(f"Deleting from bucket {upload_bucket} key {upload_key}")
+            try:
+                s3.delete_object(Bucket=upload_bucket, Key=upload_key)
+            except Exception as e:
+                print(e)
+                notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
+
         # Send message to Teams channel
         title = "Transcription job completed"
         message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
@@ -879,16 +890,6 @@ def docx_handler(event, context):
     if len(batch_failures) > 0:
         sqs_response["batchItemFailures"] = batch_failures
     print(f"Function ending. Response={sqs_response}")
-
-    # Delete upload file
-    upload_uri = job_info["Media"]["MediaFileUri"]
-    upload_bucket, upload_key = find_bucket_key(upload_uri)
-    print(f"Deleting from bucket {upload_bucket} key {upload_key}")
-    try:
-        s3.delete_object(Bucket=upload_bucket, Key=upload_key)
-    except Exception as e:
-        print(e)
-        notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
 
     return sqs_response
 
