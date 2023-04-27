@@ -78,6 +78,10 @@ def notify_teams(webhook, title, content, color="000000") -> int:
     YELLOW  FFFF00
     GREEN   00FF00
     """
+    if not webhook or webhook == "DISABLED":
+        print(f"notify_teams disabled, logging message instead: {title} {content}")
+        return 200
+
     message = {"themeColor": color, "summary": title, "sections": [{"activityTitle": title, "activitySubtitle": content}]}
     request_data = json.dumps(message).encode("utf-8")
     req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
@@ -879,8 +883,9 @@ def docx_handler(event, context):
                 print(e)
                 notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
 
-        # Send message to Teams channel
         title = "Transcription job completed"
+        print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
+        # Send message to Teams channel
         message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
         color = GREEN
         notify_teams(WEBHOOK, title, message, color)

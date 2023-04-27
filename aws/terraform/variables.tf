@@ -28,6 +28,7 @@ variable "mpl" {
 variable "webhook" {
   description = "teams webhook"
   type        = string
+  default = "DISABLED"
 }
 
 variable "prefix" {
