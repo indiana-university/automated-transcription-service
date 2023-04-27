@@ -82,10 +82,10 @@ def notify_teams(webhook, title, content, color="000000") -> int:
     request_data = json.dumps(message).encode("utf-8")
     req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
     try:
-        r = urlopen(req)
-        if http_response != 200:
-            print(f"Failed to notify Teams. Response: {http_response}")
-        return r.status
+        response = urlopen(req)
+        if response.status != 200:
+            print(f"Failed to notify Teams. Response: {response.status}")
+        return response.status
     except Exception as e:
         print(e)
 
@@ -766,7 +766,7 @@ def transcribe_handler(event, context):
             title = "Could not start transcription job"
             message = f"File name:<br><pre>{s3Path}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            http_response = notify_teams(WEBHOOK, title, message, color)
+            notify_teams(WEBHOOK, title, message, color)
             batch_failures.append({"itemIdentifier": record["messageId"]})
             continue
 
@@ -812,7 +812,7 @@ def docx_handler(event, context):
             title = "Transcription job failed"
             message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            http_response = notify_teams(WEBHOOK, title, message, color)
+            notify_teams(WEBHOOK, title, message, color)
             continue
 
         # Attempt to retrieve job details
@@ -872,7 +872,7 @@ def docx_handler(event, context):
         title = "Transcription job completed"
         message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
         color = GREEN
-        http_response = notify_teams(WEBHOOK, title, message, color)
+        notify_teams(WEBHOOK, title, message, color)
 
     # Send failed messages back to queue for retry
     sqs_response = {}
