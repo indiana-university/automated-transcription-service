@@ -93,7 +93,7 @@ resource "aws_lambda_function" "docx" {
   }
   image_config {
     command = [
-      "ats.docx_handler",
+      "transcribe_to_docx.lambda_handler",
     ]
     entry_point = []
   }
@@ -119,7 +119,7 @@ resource "aws_lambda_function" "transcribe" {
   }
   image_config {
     command = [
-      "ats.transcribe_handler",
+      "audio_to_transcribe.lambda_handler",
     ]
     entry_point = []
   }

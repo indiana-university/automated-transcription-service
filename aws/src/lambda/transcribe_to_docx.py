@@ -1,7 +1,7 @@
 import boto3
-from urllib.parse import urlparse, unquote_plus
+from urllib.parse import urlparse
 from urllib.request import urlopen
-from urllib.request import urlretrieve, Request
+from urllib.request import urlretrieve
 import json
 from datetime import timedelta
 from datetime import datetime as dt
@@ -21,8 +21,7 @@ import matplotlib.pyplot as plt
 import argparse
 from pathlib import Path
 from time import perf_counter
-import uuid
-import re
+import ats_utilities
 
 # Common formats and styles
 CUSTOM_STYLE_HEADER = "CustomHeader"
@@ -66,32 +65,6 @@ s3 = boto3.client('s3')
 
 # Transcribe client to read job results
 ts_client = boto3.client('transcribe')
-
-def notify_teams(webhook, title, content, color="000000") -> int:
-    """
-    Sends a message to a Teams channel
-    webhook: URL for Teams webhook
-    title: title of message
-    content: message content
-    color: color of line to include in message
-    RED     0000FF
-    YELLOW  FFFF00
-    GREEN   00FF00
-    """
-    if not webhook or webhook == "DISABLED":
-        print(f"notify_teams disabled, logging message instead: {title} {content}")
-        return 200
-
-    message = {"themeColor": color, "summary": title, "sections": [{"activityTitle": title, "activitySubtitle": content}]}
-    request_data = json.dumps(message).encode("utf-8")
-    req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
-    try:
-        response = urlopen(req)
-        if response.status != 200:
-            print(f"Failed to notify Teams. Response: {response.status}")
-        return response.status
-    except Exception as e:
-        print(e)
 
 def convert_timestamp(time_in_seconds):
     """
@@ -192,9 +165,9 @@ def generate_confidence_stats(speech_segments):
     """
     Creates a map of timestamps and confidence scores to allow for both summarising and graphing in the document.
     We also need to bucket the stats for summarising into bucket ranges that feel important (but are easily changed)
-    
-    :param speech_segments: List of call speech segments 
-    :return: Confidence and timestamp structures for graphing 
+
+    :param speech_segments: List of call speech segments
+    :return: Confidence and timestamp structures for graphing
     """""
 
     # Stats dictionary
@@ -487,7 +460,7 @@ def write(data, speech_segments, job_info, output_file):
         write_confidence_scores(document, stats, tempFiles)
         document.add_section(WD_SECTION.CONTINUOUS)
 
-    # Save the whole document and then upload to S3 
+    # Save the whole document and then upload to S3
     document.save(output_file)
 
     # Now delete any local images that we created
@@ -730,63 +703,11 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False)
     # Return our full turn-by-turn speaker segment list
     return speechSegmentList
 
-def transcribe_handler(event, context):
-    """
-    Entrypoint for the transcribe Lambda function. Pulls batch of messages from SQS standard queue.
-    """
-    print(f"transcribe_handler started")
-
-    s3bucketOutput = os.environ["BUCKET"]
-    WEBHOOK = os.environ['WEBHOOK_URL']
-    batch_failures = []
-    for record in event["Records"]:
-        event_message = json.loads(record["body"])
-        print(f"Event message: {event_message}")
-
-        recordZero = event_message['Records'][0]
-        # unquote_plus to handle spaces
-        s3object = unquote_plus(recordZero['s3']['object']['key'])
-        s3bucketInput = recordZero['s3']['bucket']['name']
-
-        s3Path = "s3://" + s3bucketInput + "/" + s3object
-        jobName = re.sub('[^a-zA-Z0-9_\-.]+','_', s3object) + '-' + str(uuid.uuid4())
-
-        try:
-            response = ts_client.start_transcription_job(
-                TranscriptionJobName=jobName,
-                Settings={
-                    'ShowSpeakerLabels': True,
-                    'MaxSpeakerLabels': 10,
-                },
-                IdentifyMultipleLanguages=True,
-                Media={
-                    'MediaFileUri': s3Path
-                },
-                OutputBucketName = s3bucketOutput,
-                OutputKey = today + "/"
-            )
-        except Exception as e:
-            print(e)
-            title = "Could not start transcription job"
-            message = f"File name:<br><pre>{s3Path}</pre><br>Please review CloudWatch logs for more details."
-            color = RED
-            notify_teams(WEBHOOK, title, message, color)
-            batch_failures.append({"itemIdentifier": record["messageId"]})
-            continue
-
-    # Send failed messages back to queue for retry
-    sqs_response = {}
-    if len(batch_failures) > 0:
-        sqs_response["batchItemFailures"] = batch_failures
-
-    print(f"Function ending. Response={sqs_response}")
-    return sqs_response
-
-def docx_handler(event, context):
+def lambda_handler(event, context):
     """
     Entrypoint for the Lambda function. Pulls batch of messages from SQS standard queue.
     """
-    print("Function started.")
+    print(f"audio_to_transcribe.lambda_handler started")
 
     # Get environment variables
     TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
@@ -816,7 +737,7 @@ def docx_handler(event, context):
             title = "Transcription job failed"
             message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            notify_teams(WEBHOOK, title, message, color)
+            ats_utilities.notify_teams(WEBHOOK, title, message, color)
             continue
 
         # Attempt to retrieve job details
@@ -881,14 +802,14 @@ def docx_handler(event, context):
                 s3.delete_object(Bucket=upload_bucket, Key=upload_key)
             except Exception as e:
                 print(e)
-                notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
+                ats_utilities.notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
 
         title = "Transcription job completed"
         print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
         # Send message to Teams channel
         message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
         color = GREEN
-        notify_teams(WEBHOOK, title, message, color)
+        ats_utilities.notify_teams(WEBHOOK, title, message, color)
 
     # Send failed messages back to queue for retry
     sqs_response = {}

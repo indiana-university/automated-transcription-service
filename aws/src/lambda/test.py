@@ -1,6 +1,6 @@
 import unittest
 
-target = __import__("ats")
+target = __import__("transcribe_to_docx")
 
 class TestSum(unittest.TestCase):
     def test_find_bucket_key_url(self):
