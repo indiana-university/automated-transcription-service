@@ -9,3 +9,4 @@ lambda_docx      = "transcribe-to-docx" #Name of transcribe-to-docx Lambda funct
 lambda_ts        = "audio-to-transcribe" #Name of audio-to-transcribe Lambda function
 docx_timeout     = 300000 #Number of milliseconds for timeout threshold in transcribe-to-docx Lambda function
 retention_days   = 30 #Number of days to keep upload and download bucket files
+confidence_score = 90 #Lower threshold in percent for which not to highlight confidence score. Needs to be between 50-100

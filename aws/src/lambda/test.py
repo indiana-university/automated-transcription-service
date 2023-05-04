@@ -21,5 +21,14 @@ class TestSum(unittest.TestCase):
         self.assertEqual(bucket, 's3.region-code.amazonaws.com')
         self.assertEqual(key, 'key-name')
 
+    def test_format_speaker_label(self):
+        self.assertEqual(target.format_speaker_label("spk_0"), 'Speaker 1')
+        self.assertEqual(target.format_speaker_label("spk_1"), 'Speaker 2')
+        self.assertEqual(target.format_speaker_label("Mr. Jones"), 'Mr. Jones')
+
+    def test_convert_timestamp(self):
+        self.assertEqual(target.convert_timestamp(0), '00:00:00')
+        self.assertEqual(target.convert_timestamp(10000), '02:46:40')
+
 if __name__ == '__main__':
     unittest.main()

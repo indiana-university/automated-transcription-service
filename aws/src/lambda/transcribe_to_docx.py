@@ -16,8 +16,6 @@ from docx.enum.section import WD_SECTION
 from docx.oxml.shared import qn
 from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
-from docx.oxml.shape import CT_Inline
-import matplotlib.pyplot as plt
 import argparse
 from pathlib import Path
 from time import perf_counter
@@ -64,19 +62,22 @@ today = dt.now().strftime("%Y%m%d")
 s3 = boto3.client('s3')
 
 # Transcribe client to read job results
-ts_client = boto3.client('transcribe')
+if __name__ != "__main__": ts_client = boto3.client('transcribe')
+
+confidence_env = os.environ.get('CONFIDENCE', 90)
 
 def convert_timestamp(time_in_seconds):
     """
-    Function to help convert timestamps from s to H:M:S:MM
+    Function to help convert timestamps from s to hh:mm:ss
 
     :param time_in_seconds: Time in seconds to be displayed
     :return: Formatted string for this timestamp value
     """
     timeDelta = timedelta(seconds=float(time_in_seconds))
     tsFront = timeDelta - timedelta(microseconds=timeDelta.microseconds)
-    tsSmall = timeDelta.microseconds
-    return str(tsFront) + "." + str(int(tsSmall / 10000))
+    hours, remainder = divmod(tsFront.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return '{:02d}:{:02d}:{:02d}'.format(int(hours), int(minutes), int(seconds))
 
 def set_transcript_text_style(run, force_highlight, confidence=0.0, rgb_color=None):
     """
@@ -94,10 +95,8 @@ def set_transcript_text_style(run, force_highlight, confidence=0.0, rgb_color=No
         run.font.color.rgb = rgb_color
     else:
         # Set the colour based upon the supplied confidence score
-        if confidence >= 0.90:
+        if confidence >= (confidence_env / 100):
             run.font.color.rgb = RGBColor(0, 0, 0)
-        elif confidence >= 0.5:
-            run.font.color.rgb = RGBColor(255, 0,0)
         else:
             run.font.highlight_color = WD_COLOR_INDEX.YELLOW
 
@@ -118,11 +117,11 @@ def write_transcribe_text(document, speech_segments):
     """
     for segment in speech_segments:
         startTime = convert_timestamp(segment.segmentStartTime)
-        speaker = segment.segmentSpeaker
+        speaker = format_speaker_label(segment.segmentSpeaker)
 
         paragraph = document.add_paragraph()
         run = paragraph.add_run()
-        run.add_text(startTime + " " + speaker + ": ")
+        run.add_text("[" + startTime + "] " + speaker + ": ")
 
         # Then do each word with confidence-level colouring
         text_index = 1
@@ -134,6 +133,16 @@ def write_transcribe_text(document, speech_segments):
             text_index += len(eachWord["text"])
             confLevel = eachWord["confidence"]
             set_transcript_text_style(run, False, confidence=confLevel)
+
+def format_speaker_label(label):
+    """
+    :param label: Label to format. It only formats labels of style "spk_0", "spk_1" etc.
+    :return: Formatted Label. Example: "spk_0" -> "Speaker 1"
+    """
+    if 'spk_' in label:
+        parts = label.split('_')
+        return parts[0].replace('spk', 'Speaker ') + str(int(parts[1])+1)
+    return label
 
 def load_image(url):
     """
@@ -158,7 +167,7 @@ def write_small_header_text(document, text, confidence):
     """
     run = document.paragraphs[-1].add_run(text)
     set_transcript_text_style(run, False, confidence=confidence)
-    run.font.size = Pt(7)
+    run.font.size = Pt(10)
     run.font.italic = True
 
 def generate_confidence_stats(speech_segments):
@@ -216,8 +225,7 @@ def write_custom_text_header(document, text_label):
     :param text_label: Header text to write out
     :return:
     """
-    paragraph = document.add_paragraph(text_label)
-    paragraph.style = CUSTOM_STYLE_HEADER
+    paragraph = document.add_heading(text_label, level=3)
 
 def write_confidence_scores(document, stats, temp_files):
     """
@@ -232,7 +240,7 @@ def write_confidence_scores(document, stats, temp_files):
     document.add_section(WD_SECTION.CONTINUOUS)
     section_ptr = document.sections[-1]._sectPr
     cols = section_ptr.xpath('./w:cols')[0]
-    cols.set(qn('w:num'), '2')
+    cols.set(qn('w:num'), '1')
     write_custom_text_header(document, "Word Confidence Scores")
     # Start with the fixed headers
     table = document.add_table(rows=1, cols=3)
@@ -265,25 +273,6 @@ def write_confidence_scores(document, stats, temp_files):
     for row in table.rows:
         for idx, width in enumerate(widths):
             row.cells[idx].width = width
-    # Confidence of each word as scatter graph, and the mean as a line across
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(6, 4))
-    ax.scatter(stats["timestamps"], stats["accuracy"])
-    ax.plot([stats["timestamps"][0], stats["timestamps"][-1]], [statistics.mean(stats["accuracy"]),
-                                                                statistics.mean(stats["accuracy"])], "r")
-    # Formatting
-    ax.set_xlabel("Time (seconds)")
-    ax.set_ylabel("Word Confidence (percent)")
-    ax.set_yticks(range(0, 101, 10))
-    fig.suptitle("Word Confidence During Transcription", fontsize=11, fontweight="bold")
-    ax.legend(["Word Confidence Mean", "Individual words"], loc="lower center")
-    # Write out the chart
-    chart_file_name = "./" + "chart.png"
-    plt.savefig(chart_file_name, facecolor="aliceblue")
-    temp_files.append(chart_file_name)
-    plt.clf()
-    document.add_picture(chart_file_name, width=Cm(8))
-    document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.LEFT
-    document.add_paragraph()
 
 
 def set_table_cell_background_colour(cell, rgb_hex):
@@ -296,21 +285,6 @@ def set_table_cell_background_colour(cell, rgb_hex):
     """
     parsed_xml = parse_xml(r'<w:shd {0} w:fill="{1}"/>'.format(nsdecls('w'), rgb_hex))
     cell._tc.get_or_add_tcPr().append(parsed_xml)
-
-def add_picture_to_run(run, picture_file, width=None, height=None):
-    """
-    Add a picture in a run. Allowed for embedding
-
-    :param run: DOCX paragraph run to be modified
-    :param picture_file: BytesIO object docx image that is added to run
-    :param width: width of image (optional for scaling)
-    :param height: height of image (optional for scaling)
-    """
-    rId, image = run.part.get_or_add_image(picture_file)
-    cx, cy = image.scaled_dimensions(width, height)
-    shape_id, filename = run.part.next_id, image.filename
-    inline = CT_Inline.new_pic_inline(shape_id, rId, filename, cx, cy)
-    run._r.add_drawing(inline)
 
 def write(data, speech_segments, job_info, output_file):
     """
@@ -349,10 +323,8 @@ def write(data, speech_segments, job_info, output_file):
     custom_style.font.bold = True
     custom_style.font.italic = True
 
-    # Intro banner header
-    run = document.add_paragraph().add_run()
-    add_picture_to_run(run, load_image(IMAGE_URL_BANNER), width=Inches(0.25))
-    run.add_text(" Social Science Research Commons")
+    # Intro header
+    write_custom_text_header(document, "Indiana University Social Science Research Commons")
 
     # Write put the call summary table - depending on the mode that Transcribe was used in, and
     # if the request is being run on a JSON results file rather than reading the job info from Transcribe,
@@ -375,9 +347,9 @@ def write(data, speech_segments, job_info, output_file):
         job_data.append({"name": "Audio Duration", "value": dur_text})
     # We can infer diarization mode from the JSON results data structure
     if "speaker_labels" in data["results"]:
-        job_data.append({"name": "Audio Ident", "value": "Speaker-separated"})
+        job_data.append({"name": "Audio Identification", "value": "Speaker-separated"})
     else:
-        job_data.append({"name": "Audio Ident", "value": "Channel-separated"})
+        job_data.append({"name": "Audio Identification", "value": "Channel-separated"})
 
     # Some information is only in the job info
     if job_info is not None:
@@ -412,7 +384,7 @@ def write(data, speech_segments, job_info, output_file):
     # Finish with the confidence scores (if we have any)
     stats = generate_confidence_stats(speech_segments)
     if len(stats["accuracy"]) > 0:
-        job_data.append({"name": "Avg. Confidence", "value": str(round(statistics.mean(stats["accuracy"]), 2)) + "%"})
+        job_data.append({"name": "Average Confidence", "value": str(round(statistics.mean(stats["accuracy"]), 2)) + "%"})
 
     # Place all of our job-summary fields into the Table, one row at a time
     for next_row in job_data:
@@ -433,8 +405,6 @@ def write(data, speech_segments, job_info, output_file):
     if len(speech_segments) == 0:
         document.add_section(WD_SECTION.CONTINUOUS)
         section_ptr = document.sections[-1]._sectPr
-        cols = section_ptr.xpath('./w:cols')[0]
-        cols.set(qn('w:num'), '1')
         write_custom_text_header(document, "This file had no audible speech to transcribe.")
     else:
         # Process and display transcript by speaker segments (new section)
@@ -442,13 +412,10 @@ def write(data, speech_segments, job_info, output_file):
         # -- Speaker identification
         document.add_section(WD_SECTION.CONTINUOUS)
         section_ptr = document.sections[-1]._sectPr
-        cols = section_ptr.xpath('./w:cols')[0]
-        cols.set(qn('w:num'), '1')
         write_custom_text_header(document, "Audio Transcription")
         document.add_paragraph()  # Spacing
-        write_small_header_text(document, "WORD CONFIDENCE: >= 90% in black, ", 0.9)
-        write_small_header_text(document, ">= 50% in red, ", 0.5)
-        write_small_header_text(document, "< 50% in yellow highlight", 0.49)
+        write_small_header_text(document, "WORD CONFIDENCE: >= " + str(confidence_env) + "% in black, ", (confidence_env / 100))
+        write_small_header_text(document, "< " + str(confidence_env) + "% in yellow highlight", ((confidence_env - 1) / 100))
 
         # Based upon our segment list, write out the transcription
         write_transcribe_text(document, speech_segments)
@@ -847,7 +814,7 @@ def generate_document():
     Entrypoint for the command-line interface.
     """
     # Parameter extraction
-    cli_parser = argparse.ArgumentParser(prog='ts-to-word',
+    cli_parser = argparse.ArgumentParser(prog='transcribe_to_docx',
                                          description='Turn an Amazon Transcribe job output into an MS Word document')
     source_group = cli_parser.add_mutually_exclusive_group(required=True)
     source_group.add_argument('--inputFile', metavar='filename', type=str, help='File containing Transcribe JSON output')

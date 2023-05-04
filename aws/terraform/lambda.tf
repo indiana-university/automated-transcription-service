@@ -89,6 +89,7 @@ resource "aws_lambda_function" "docx" {
       WEBHOOK_URL  = var.webhook
       BUCKET       = aws_s3_bucket.download.id
       TIMEOUT      = var.docx_timeout
+      CONFIDENCE   = var.confidence_score
     }
   }
   image_config {

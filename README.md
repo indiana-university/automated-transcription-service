@@ -32,7 +32,7 @@ git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
 ```
 5. Execute json to Word. The result will be dropped in the location of inputFile
 ```
-python3 ~/automated-transcription-service/python/ts-to-word.py --confidence on --inputFile <JSON_FILE>
+python3 ~/automated-transcription-service/aws/src/lambda/transcribe_to_docx.py --inputFile <JSON_FILE>
 ```
 6. (Optional) If a developer makes changes they can be picked up with the following command
 ```

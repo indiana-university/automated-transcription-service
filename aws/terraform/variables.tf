@@ -60,3 +60,9 @@ variable "retention_days" {
   description = "Number of days to keep download bucket files"
   type        = number
 }
+
+variable "confidence" {
+  description = "Lower threshold in percent for which not to highlight confidence score. Needs to be between 50-100"
+  type        = number
+  default = 90
+}
