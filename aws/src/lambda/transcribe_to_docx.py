@@ -64,7 +64,7 @@ s3 = boto3.client('s3')
 # Transcribe client to read job results
 if __name__ != "__main__": ts_client = boto3.client('transcribe')
 
-confidence_env = os.environ.get('CONFIDENCE', 90)
+confidence_env = int(os.environ.get('CONFIDENCE', 90))
 
 def convert_timestamp(time_in_seconds):
     """
