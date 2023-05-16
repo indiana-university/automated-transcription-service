@@ -1,6 +1,41 @@
-# AWS deployment code for Automated Transcription Service (ATS)
+# AWS code for Automated Transcription Service (ATS)
 
-## Part I: Build and push the container image
+## Instructions for generating a Word document from an ATS json file via the command line without an AWS pipeline
+
+This is guide for using a Python script in this project to generate a Word document from an AWS ATS json files. This is primarily written for use an a *nix machine but should similarly work on other Operating Systems. These steps will install required Python libraries in the Users' space.
+
+Once this is complete it does not need to be repeated. Simply follow step #5 for executing the generation. If a developer changes the translate script step #6 may be used to update your local version.
+
+1. Open a `Terminal`. Hint: By default Paste is done via Shift+Ctrl+V, if in doubt check the menu of your Terminal
+2. Verify python3 is installed. This should return `Python 3.x.x`
+```
+python3 --version
+```
+2. Prepare Python's package manager for installing required Python libraries. Hint: Run this as two commands consecutively as shown, otherwise an error occurs
+```
+python3 -m pip install --user --upgrade pip
+python3 -m pip install --user --upgrade Pillow
+```
+3. Install required libraries
+```
+python3 -m pip install --user python-docx boto3
+```
+4. Checkout this project
+```
+git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
+```
+5. Execute json to Word. The result will be dropped in the location of inputFile
+```
+python3 ~/automated-transcription-service/aws/src/lambda/transcribe_to_docx.py --inputFile <JSON_FILE>
+```
+6. (Optional) If a developer makes changes they can be picked up with the following command
+```
+cd automated-transcription-service; git pull
+cd ~/
+```
+
+## Building an AWS pipeline
+### Part I: Build and push the container image
 
 Begin by creating an ECR repository:
 
@@ -35,7 +70,7 @@ Push the image to ECR for deployment:
 docker push <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/ats:latest
 ```
 
-## Part II: Deploy infrastructure
+### Part II: Deploy infrastructure
 
 The deployment is set up to store remote state in an S3 bucket, so begin by creating that bucket:
 ```
@@ -45,7 +80,7 @@ aws s3 mb s3://<TF_STATE_BUCKET_NAME>
 Switch to the `terraform` directory:
 
 ```
-cd ../terraform
+cd ./terraform
 ```
 
 Rename the auto.tfvars template:
@@ -74,7 +109,7 @@ Finally, run `terraform apply` to actually deploy the components of the applicat
 terraform apply
 ```
 
-## Retrieving files from S3
+### (Optional) Part III: Retrieving files from S3
 
 The AWS web console does not allow downloading multiple files at once. There are ways to get around that:
 

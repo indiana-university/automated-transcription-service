@@ -6,37 +6,6 @@ We believe that cloud machine learning APIs provides a powerful alternative to I
 
 Thus, we seek to provide a new service to IU researchers that will make audio transcription convenient, efficient, and accessible to them, even without technical skills. For researchers, this will provide an affordable and secure option for quickly producing automated transcripts of research-related recordings.
 
-## Instructions for generating a Word document from an ATS json file via the command line on IUs RED
-
-This is guide for using a Python script in this project to generate a Word document from an AWS ATS json files. A pre-requisite of this guide is access to IU RED (https://kb.iu.edu/d/apum). These steps will install required Python libraries in the Users' space.
-
-Once this is complete it does not need to be repeated. Simply follow step #5 for executing the generation. If a developer changes the translate script step #6 may be used to update your local version.
-
-1. Open a `Terminal`. Hint: By default Paste is done via Shift+Ctrl+V, if in doubt check the menu of your Terminal
-2. Verify python3 is installed. This should return `Python 3.x.x`
-```
-python3 --version
-```
-2. Prepare Python's package manager for installing matplotlib. Hint: Run this as two commands consecutively as shown, otherwise an error occurs
-```
-python3 -m pip install --user --upgrade pip
-python3 -m pip install --user --upgrade Pillow
-```
-3. Install required libraries 
-```
-python3 -m pip install --user python-docx matplotlib boto3
-```
-4. Checkout this project. This will challenge for IU authentication
-```
-git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
-```
-5. Execute json to Word. The result will be dropped in the location of inputFile
-```
-python3 ~/automated-transcription-service/aws/src/lambda/transcribe_to_docx.py --inputFile <JSON_FILE>
-```
-6. (Optional) If a developer makes changes they can be picked up with the following command
-```
-cd automated-transcription-service; git pull
-<Challenge for IU authentication>
-cd ~/
-```
+This project has folders:
+* aws: To build a pipeline with terraform to accept audio files in an S3 input bucket and convert those to docx with the help of a Python script. Output files are placed in another S3 output bucket
+* google: Python script to convert json to docx only
