@@ -209,6 +209,6 @@ resource "aws_lambda_event_source_mapping" "upload" {
 resource "aws_lambda_event_source_mapping" "download" {
   event_source_arn                   = aws_sqs_queue.transcribe_to_docx.arn
   function_name                      = aws_lambda_function.docx.arn
-  batch_size                         = 5
-  maximum_batching_window_in_seconds = 60
+  batch_size                         = 1
+  function_response_types            = ["ReportBatchItemFailures"]
 }
