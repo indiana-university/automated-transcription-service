@@ -90,6 +90,7 @@ resource "aws_lambda_function" "docx" {
       BUCKET       = aws_s3_bucket.download.id
       TIMEOUT      = var.docx_timeout
       CONFIDENCE   = var.confidence_score
+      DOCX_MAX_DURATION = var.docx_max_duration
     }
   }
   image_config {
@@ -203,12 +204,14 @@ resource "aws_lambda_event_source_mapping" "upload" {
   event_source_arn                   = aws_sqs_queue.audio_to_transcribe.arn
   function_name                      = aws_lambda_function.transcribe.arn
   batch_size                         = 10
-  maximum_batching_window_in_seconds = 0
+  maximum_batching_window_in_seconds = 1
+  function_response_types            = ["ReportBatchItemFailures"]
 }
 
 resource "aws_lambda_event_source_mapping" "download" {
   event_source_arn                   = aws_sqs_queue.transcribe_to_docx.arn
   function_name                      = aws_lambda_function.docx.arn
   batch_size                         = 1
+  maximum_batching_window_in_seconds = 0
   function_response_types            = ["ReportBatchItemFailures"]
 }

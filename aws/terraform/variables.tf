@@ -66,3 +66,9 @@ variable "confidence" {
   type        = number
   default = 90
 }
+
+variable "docx_max_duration" {
+  description = "Max transcription duration in seconds that transcribe_to_docx will process before issuing a failure"
+  type        = number
+  default = 13150
+}

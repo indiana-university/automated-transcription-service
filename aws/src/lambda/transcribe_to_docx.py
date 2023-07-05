@@ -680,6 +680,7 @@ def lambda_handler(event, context):
     TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
     WEBHOOK = os.environ['WEBHOOK_URL']         # Teams webhook URL
     BUCKET = os.environ["BUCKET"]               # S3 output bucket name
+    DOCX_MAX_DURATION = float(os.environ['DOCX_MAX_DURATION'])   # Max transcription duration to process
 
     # Process messages in batch
     batch_failures = []
@@ -716,6 +717,22 @@ def lambda_handler(event, context):
             # Note: message will be deleted from queue
             print(e)
             print(f"Failed to retrieve job details for {job_name}")
+            continue
+
+        # Check duration and error if exceeded
+        totalDuration = 0
+        if "LanguageCode" in job_info: # AWS sample job_info
+            totalDuration = job_info["DurationInSeconds"]
+        elif "LanguageCodes" in job_info: # AWS job_info
+            for languageCodes in job_info["LanguageCodes"]: totalDuration += languageCodes["DurationInSeconds"]
+        elif "language_codes" in job_info: # json job_info
+            for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
+        print(f"totalDuration = {totalDuration}")
+        if totalDuration > DOCX_MAX_DURATION:
+            message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+            print(f"{message}")
+            ats_utilities.notify_teams(WEBHOOK, "Transcription job stopped", message, RED)
+            deleteUploadFileHelper(job_status, job_info, WEBHOOK)
             continue
 
         # Try and download the transcript JSON
@@ -760,16 +777,7 @@ def lambda_handler(event, context):
             batch_failures.append({"itemIdentifier": message_id})
             continue
 
-        # Delete upload file
-        if job_status == "COMPLETED":
-            upload_uri = job_info["Media"]["MediaFileUri"]
-            upload_bucket, upload_key = find_bucket_key(upload_uri)
-            print(f"Deleting from bucket {upload_bucket} key {upload_key}")
-            try:
-                s3.delete_object(Bucket=upload_bucket, Key=upload_key)
-            except Exception as e:
-                print(e)
-                ats_utilities.notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
+        deleteUploadFileHelper(job_status, job_info, WEBHOOK)
 
         title = "Transcription job completed"
         print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
@@ -785,6 +793,24 @@ def lambda_handler(event, context):
     print(f"Function ending. Response={sqs_response}")
 
     return sqs_response
+
+def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
+    """
+    Helper to delete the upload file
+
+    :param job_status: event_message TranscriptionJobStatus
+    :param job_info: get_transcription_job TranscriptionJob
+    :param WEBHOOK: webhook for teams notification
+    """
+    if job_status == "COMPLETED":
+        upload_uri = job_info["Media"]["MediaFileUri"]
+        upload_bucket, upload_key = find_bucket_key(upload_uri)
+        print(f"Deleting from bucket {upload_bucket} key {upload_key}")
+        try:
+            s3.delete_object(Bucket=upload_bucket, Key=upload_key)
+        except Exception as e:
+            print(e)
+            ats_utilities.notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
 
 def load_transcribe_job_status(cli_args):
     """
