@@ -28,7 +28,7 @@ variable "mpl" {
 variable "webhook" {
   description = "teams webhook"
   type        = string
-  default = "DISABLED"
+  default     = "DISABLED"
 }
 
 variable "prefix" {
@@ -61,14 +61,14 @@ variable "retention_days" {
   type        = number
 }
 
-variable "confidence" {
+variable "confidence_score" {
   description = "Lower threshold in percent for which not to highlight confidence score. Needs to be between 50-100"
   type        = number
-  default = 90
+  default     = 90
 }
 
 variable "docx_max_duration" {
   description = "Max transcription duration in seconds that transcribe_to_docx will process before issuing a failure"
   type        = number
-  default = 13150
+  default     = 13150
 }

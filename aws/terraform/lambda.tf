@@ -85,11 +85,11 @@ resource "aws_lambda_function" "docx" {
   #environment_variables = var.env_vars
   environment {
     variables = {
-      MPLCONFIGDIR = var.mpl
-      WEBHOOK_URL  = var.webhook
-      BUCKET       = aws_s3_bucket.download.id
-      TIMEOUT      = var.docx_timeout
-      CONFIDENCE   = var.confidence_score
+      MPLCONFIGDIR      = var.mpl
+      WEBHOOK_URL       = var.webhook
+      BUCKET            = aws_s3_bucket.download.id
+      TIMEOUT           = var.docx_timeout
+      CONFIDENCE        = var.confidence_score
       DOCX_MAX_DURATION = var.docx_max_duration
     }
   }

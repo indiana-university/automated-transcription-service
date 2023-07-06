@@ -13,7 +13,7 @@ resource "aws_sqs_queue" "transcribe_to_docx" {
       maxReceiveCount     = 3
     }
   )
-  sqs_managed_sse_enabled    = false
+  sqs_managed_sse_enabled    = true
   tags                       = {}
   tags_all                   = {}
   visibility_timeout_seconds = 900
@@ -58,7 +58,7 @@ resource "aws_sqs_queue" "audio_to_transcribe" {
       maxReceiveCount     = 3
     }
   )
-  sqs_managed_sse_enabled    = false
+  sqs_managed_sse_enabled    = true
   tags                       = {}
   tags_all                   = {}
   visibility_timeout_seconds = 30
@@ -138,7 +138,7 @@ resource "aws_sqs_queue" "audio_to_transcribe_dlq" {
   max_message_size                  = 262144
   message_retention_seconds         = 345600
   receive_wait_time_seconds         = 0
-  sqs_managed_sse_enabled           = false
+  sqs_managed_sse_enabled           = true
   tags                              = {}
   tags_all                          = {}
   visibility_timeout_seconds        = 30
