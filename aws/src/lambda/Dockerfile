@@ -1,11 +1,33 @@
-FROM public.ecr.aws/lambda/python:3.10
+# Define custom function directory
+ARG FUNCTION_DIR="/function"
 
-# Install the function's dependencies using file requirements.txt
-# from your project folder.
-COPY requirements.txt  .
-RUN  pip3 install -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
+FROM python:3.11 as build-image
+
+# Include global arg in this stage of the build
+ARG FUNCTION_DIR
 
 # Copy function code
-COPY ats_utilities.py ${LAMBDA_TASK_ROOT}
-COPY audio_to_transcribe.py ${LAMBDA_TASK_ROOT}
-COPY transcribe_to_docx.py ${LAMBDA_TASK_ROOT}
+RUN  mkdir -p ${FUNCTION_DIR}
+COPY ats_utilities.py ${FUNCTION_DIR}
+COPY audio_to_transcribe.py ${FUNCTION_DIR}
+COPY transcribe_to_docx.py ${FUNCTION_DIR}
+
+# Install the function's dependencies
+COPY requirements.txt  .
+RUN  pip install --target ${FUNCTION_DIR} awslambdaric
+RUN  pip install -r requirements.txt --target ${FUNCTION_DIR}
+
+# Use a slim version of the base Python image to reduce the final image size
+FROM python:3.11-slim
+
+# Include global arg in this stage of the build
+ARG FUNCTION_DIR
+
+# Set working directory to function root directory
+WORKDIR ${FUNCTION_DIR}
+
+# Copy in the built dependencies
+COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
+
+# Set runtime interface client as default command for the container runtime
+ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
