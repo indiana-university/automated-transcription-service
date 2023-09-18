@@ -22,7 +22,7 @@ python3 -m pip install --user python-docx boto3
 ```
 4. Checkout this project
 ```
-git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
+git clone <REPO URL>
 ```
 5. Execute json to Word. The result will be dropped in the location of inputFile
 ```
@@ -117,11 +117,11 @@ The AWS web console does not allow downloading multiple files at once. There are
 
 All files in the S3 bucket
 ```
-aws s3 cp s3://bl-ssrc-ats-download-20221110204121545700000002 ~/Downloads --recursive
+aws s3 cp s3://my-download-20221110204121545700000002 ~/Downloads --recursive
 ```
 or a specific folder
 ```
-aws s3 cp s3://bl-ssrc-ats-download-20221110204121545700000002/20230324 ~/Downloads --recursive
+aws s3 cp s3://my-download-20221110204121545700000002/20230324 ~/Downloads --recursive
 ```
 There are also ways to include / exclude files using the `--exclude` and `--include` flags. See https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html for more details.
 

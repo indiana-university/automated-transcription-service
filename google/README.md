@@ -41,7 +41,7 @@ python3 -m pip install --user google-cloud-storage urllib3
 ```
 4. Checkout this project
 ```
-git clone https://github.iu.edu/IUBSSRC/automated-transcription-service.git
+git clone <REPO URL>
 ```
 5. Execute the parser. The result will be dropped in the location of inputFile
 ```
