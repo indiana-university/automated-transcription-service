@@ -24,4 +24,4 @@ Click on Export results and choose `Download table (JSON)`.
 
 The report will be downloaded as a JSON file. 
 
-Optional: Use the reports.json file to convert the JSON to a CSV file.
+Optional: Use the reports.py script to convert the JSON to a CSV file. Note that this script assumes job names start with a username, e.g. jsmith_full_job_name_123.
