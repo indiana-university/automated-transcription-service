@@ -65,6 +65,12 @@ def print_transcript(response, speakers=False):
                 current_words = [next_word]
                 current_speaker = next_speaker
                 current_ts = word['startTime']
+
+        # Print last speaker
+        paragraph = ' '.join(current_words)
+        print(f"Timestamp:\t{timestamp(current_ts)}")
+        print(f"Speaker {current_speaker}:\t{paragraph}")
+        print()
     else:
         ts = "00:00:00"
         for result in response['results']:

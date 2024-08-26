@@ -6,6 +6,7 @@ import time
 import argparse
 from google.cloud import storage
 from urllib.parse import urlparse
+from docx.shared import Cm, Mm, Pt, Inches, RGBColor
 from docx import Document
 
 # Format output of timestamps
@@ -34,7 +35,7 @@ def download_blob(url):
         return contents
 
 # Next version parses the final transcription result in the response file, which includes speaker ID and timestamp for every word.
-def print_transcript(response, doc, speakers=False):
+def print_transcript(response, document, speakers=False):
     if speakers:
         last = len(response['results']) - 1
         transcript = response['results'][last]
@@ -45,7 +46,7 @@ def print_transcript(response, doc, speakers=False):
         try:
             current_speaker = best_alternative['words'][0]['speakerTag']
         except:
-            doc.add_paragraph("Speaker diarization not enabled.")
+            document.add_paragraph("Speaker diarization not enabled.")
             return
         current_ts = best_alternative['words'][0]['startTime']
 
@@ -60,12 +61,14 @@ def print_transcript(response, doc, speakers=False):
             else:
                 #New speaker. Print everything and reset
                 paragraph = ' '.join(current_words)
-                doc.add_paragraph(f"Timestamp:\t{timestamp(current_ts)}")
-                doc.add_paragraph(f"Speaker {current_speaker}:\t{paragraph}")
-                doc.add_paragraph()
+                document.add_paragraph(f"[{timestamp(current_ts)}] Speaker {current_speaker}: {paragraph}")
                 current_words = [next_word]
                 current_speaker = next_speaker
                 current_ts = word['startTime']
+
+        # Print last speaker
+        paragraph = ' '.join(current_words)
+        document.add_paragraph(f"[{timestamp(current_ts)}] Speaker {current_speaker}: {paragraph}")
     else:
         ts = "00:00:00"
         for result in response['results']:
@@ -74,10 +77,7 @@ def print_transcript(response, doc, speakers=False):
             if transcript == 'missing':
                 continue
             confidence = best_alternative['confidence']
-            doc.add_paragraph(f"Timestamp:\t{ts}")
-            doc.add_paragraph(f"Confidence:\t{confidence:.0%}")
-            doc.add_paragraph(f"Transcript:\t{transcript}")
-            doc.add_paragraph()
+            document.add_paragraph(f"[{ts} {confidence:.0%}]: {transcript}")
             ts = timestamp(result['resultEndTime'])
 
 def main():
@@ -87,7 +87,13 @@ def main():
     parser.add_argument('-o', '--outputFile', metavar='outputFile', type=str, help='Output DOCX file')
     args = parser.parse_args()
 
-    doc = Document()
+    document = Document()
+    document.sections[0].left_margin = Mm(19.1)
+    document.sections[0].right_margin = Mm(19.1)
+    document.sections[0].top_margin = Mm(19.1)
+    document.sections[0].bottom_margin = Mm(19.1)
+    document.sections[0].page_width = Mm(210)
+    document.sections[0].page_height = Mm(297)
 
     # Open response file and load JSON results
     if urlparse(args.file).scheme == 'gs':
@@ -96,11 +102,11 @@ def main():
     else:
         with open(args.file) as f:
             response = json.load(f)
-    print_transcript(response, doc, args.speakers)
+    print_transcript(response, document, args.speakers)
 
     if args.outputFile is None:
         args.outputFile = args.file + ".docx"
-    doc.save(args.outputFile)
+    document.save(args.outputFile)
 
 if __name__ == "__main__":
     main()
