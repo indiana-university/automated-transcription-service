@@ -4,10 +4,14 @@
 import json
 import time
 import argparse
+import os
 from google.cloud import storage
 from urllib.parse import urlparse
 from docx.shared import Cm, Mm, Pt, Inches, RGBColor
+from docx.enum.text import WD_COLOR_INDEX
 from docx import Document
+
+confidence_env = int(os.environ.get('CONFIDENCE', 90))
 
 # Format output of timestamps
 def timestamp(seconds):
@@ -36,13 +40,14 @@ def download_blob(url):
 
 # Next version parses the final transcription result in the response file, which includes speaker ID and timestamp for every word.
 def print_transcript(response, document, speakers=False):
+    write_custom_text_header(document, "Audio Transcription")
+
     if speakers:
         last = len(response['results']) - 1
         transcript = response['results'][last]
 
         #Grab first first speaker and start time for initial timestamp
         best_alternative = transcript['alternatives'][0]
-        current_words = []
         try:
             current_speaker = best_alternative['words'][0]['speakerTag']
         except:
@@ -50,25 +55,38 @@ def print_transcript(response, document, speakers=False):
             return
         current_ts = best_alternative['words'][0]['startTime']
 
+        document.add_paragraph()  # Spacing
+        write_small_header_text(document, "WORD CONFIDENCE: >= " + str(confidence_env) + "% in black, ", (confidence_env / 100))
+        write_small_header_text(document, "< " + str(confidence_env) + "% in yellow highlight", ((confidence_env - 1) / 100))
+
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run()
+
+        #Initial speaker
+        run.add_text(f"[{timestamp(current_ts)}] Speaker {current_speaker}: ")
+        run = paragraph.add_run()
+
         #Loop through words
         #When speaker changes: print line, timestamp, speaker, paragraph, add line break
         for word in best_alternative['words']:
             next_speaker = word['speakerTag']
             next_word = word['word']
-            if next_speaker == current_speaker:
-                #Same speaker, so add word to list for paragraph
-                current_words.append(next_word)
-            else:
-                #New speaker. Print everything and reset
-                paragraph = ' '.join(current_words)
-                document.add_paragraph(f"[{timestamp(current_ts)}] Speaker {current_speaker}: {paragraph}")
-                current_words = [next_word]
+
+            if next_speaker != current_speaker:
+                #New speaker
+                paragraph = document.add_paragraph()
+                run = paragraph.add_run()
+                run.add_text(f"[{timestamp(current_ts)}] Speaker {current_speaker}: ")
+                run = paragraph.add_run()
                 current_speaker = next_speaker
                 current_ts = word['startTime']
 
-        # Print last speaker
-        paragraph = ' '.join(current_words)
-        document.add_paragraph(f"[{timestamp(current_ts)}] Speaker {current_speaker}: {paragraph}")
+            #Confidence highlighting and add word
+            confidence = word['confidence']
+            set_transcript_text_style(run, False, confidence=confidence)
+
+            run.add_text(next_word + " ")
+            run = paragraph.add_run()
     else:
         ts = "00:00:00"
         for result in response['results']:
@@ -79,6 +97,60 @@ def print_transcript(response, document, speakers=False):
             confidence = best_alternative['confidence']
             document.add_paragraph(f"[{ts} {confidence:.0%}]: {transcript}")
             ts = timestamp(result['resultEndTime'])
+
+def set_transcript_text_style(run, force_highlight, confidence=0.0, rgb_color=None):
+    """
+    Sets the colour and potentially the style of a given run of text in a transcript.  You can either
+    supply the hex-code, or base it upon the confidence score in the transcript.
+
+    :param run: DOCX paragraph run to be modified
+    :param force_highlight: Indicates that we're going to forcibly set the background colour
+    :param confidence: Confidence score for this word, used to dynamically set the colour
+    :param rgb_color: Specific colour for the text
+    """
+
+    # If we have an RGB colour then use it
+    if rgb_color is not None:
+        run.font.color.rgb = rgb_color
+    else:
+        # Set the colour based upon the supplied confidence score
+        if confidence >= (confidence_env / 100):
+            run.font.color.rgb = RGBColor(0, 0, 0)
+        else:
+            run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+
+    # Apply any other styles wanted
+    if confidence == 0.0:
+        # Call out any total disasters in bold
+        run.font.bold = True
+
+    # Force the background colour if required
+    if force_highlight:
+        run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+
+def write_small_header_text(document, text, confidence):
+    """
+    Helper function to write out small header entries, where the text colour matches the
+    colour of the transcript text for a given confidence value
+
+    :param document: Document to write the text to
+    :param text: Text to be output
+    :param confidence: Confidence score, which changes the text colour
+    """
+    run = document.paragraphs[-1].add_run(text)
+    set_transcript_text_style(run, False, confidence=confidence)
+    run.font.size = Pt(10)
+    run.font.italic = True
+
+def write_custom_text_header(document, text_label):
+    """
+    Adds a run of text to the document with the given text label, but using our customer text-header style
+
+    :param document: Document to write the text to
+    :param text_label: Header text to write out
+    :return:
+    """
+    paragraph = document.add_heading(text_label, level=3)
 
 def main():
     parser = argparse.ArgumentParser('Print formatted transcipts from a speech-to-text JSON response.')
@@ -102,6 +174,12 @@ def main():
     else:
         with open(args.file) as f:
             response = json.load(f)
+
+    # Intro header
+    write_custom_text_header(document, "Indiana University Social Science Research Commons")
+
+    write_custom_text_header(document, "Google Cloud Transcribe Audio Source")
+
     print_transcript(response, document, args.speakers)
 
     if args.outputFile is None:
