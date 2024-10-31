@@ -1,5 +1,5 @@
 resource "aws_iam_role" "lambda_docx" {
-  name = "${var.lambda_docx}-role"
+  name = "${var.prefix}-${var.lambda_docx}-role"
   assume_role_policy = jsonencode({
     "Version" : "2012-10-17",
     "Statement" : [
@@ -15,7 +15,7 @@ resource "aws_iam_role" "lambda_docx" {
 }
 
 resource "aws_iam_policy" "lambda_docx" {
-  name = "${var.lambda_docx}-policy"
+  name = "${var.prefix}-${var.lambda_docx}-policy"
   policy = jsonencode(
     {
       "Version" : "2012-10-17",
@@ -63,12 +63,12 @@ resource "aws_iam_policy" "lambda_docx" {
 }
 
 resource "aws_cloudwatch_log_group" "docx" {
-  name              = "/aws/lambda/${var.lambda_docx}"
+  name              = "/aws/lambda/${var.prefix}-${var.lambda_docx}"
   retention_in_days = 0
 }
 
 resource "aws_cloudwatch_log_group" "transcribe" {
-  name              = "/aws/lambda/${var.lambda_ts}"
+  name              = "/aws/lambda/${var.prefix}-${var.lambda_ts}"
   retention_in_days = 0
 }
 
@@ -76,7 +76,7 @@ resource "aws_lambda_function" "docx" {
   depends_on = [
     aws_cloudwatch_log_group.docx
   ]
-  function_name = var.lambda_docx
+  function_name = "${var.prefix}-${var.lambda_docx}"
   memory_size   = 2048
   role          = aws_iam_role.lambda_docx.arn
   timeout       = 900
@@ -105,7 +105,7 @@ resource "aws_lambda_function" "transcribe" {
   depends_on = [
     aws_cloudwatch_log_group.transcribe
   ]
-  function_name = var.lambda_ts
+  function_name = "${var.prefix}-${var.lambda_ts}"
   layers        = []
   memory_size   = 128
   tags          = {}
@@ -133,7 +133,7 @@ resource "aws_iam_role_policy_attachment" "docx" {
 }
 
 resource "aws_iam_role" "lambda_transcribe" {
-  name = "${var.lambda_ts}-role"
+  name = "${var.prefix}-${var.lambda_ts}-role"
   assume_role_policy = jsonencode({
     "Version" : "2012-10-17",
     "Statement" : [
@@ -149,7 +149,7 @@ resource "aws_iam_role" "lambda_transcribe" {
 }
 
 resource "aws_iam_policy" "lambda_transcribe" {
-  name = "${var.lambda_ts}-policy"
+  name = "${var.prefix}-${var.lambda_ts}-policy"
   policy = jsonencode(
     {
       "Version" : "2012-10-17",
@@ -214,4 +214,20 @@ resource "aws_lambda_event_source_mapping" "download" {
   batch_size                         = 1
   maximum_batching_window_in_seconds = 0
   function_response_types            = ["ReportBatchItemFailures"]
+}
+
+resource "aws_iam_role" "lambda_step" {
+  name = "${var.prefix}-${var.lambda_step}-role"
+  assume_role_policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        Action : "sts:AssumeRole",
+        Effect : "Allow",
+        Principal : {
+          "Service" : "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
 }

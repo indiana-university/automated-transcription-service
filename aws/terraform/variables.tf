@@ -34,6 +34,7 @@ variable "webhook" {
 variable "prefix" {
   description = "prefix for bucket names"
   type        = string
+  default     = "ats"
 }
 
 variable "lambda_docx" {
@@ -43,6 +44,11 @@ variable "lambda_docx" {
 
 variable "lambda_ts" {
   description = "name of the lambda function audio-to-ts function"
+  type        = string
+}
+
+variable "lambda_step" {
+  description = "name of the lambda function step function"
   type        = string
 }
 
