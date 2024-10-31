@@ -1,7 +1,7 @@
 # Define custom function directory
 ARG FUNCTION_DIR="/function"
 
-FROM python:3.12 as build-image
+FROM python:3.12 AS build-image
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR
