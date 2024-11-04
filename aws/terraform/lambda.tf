@@ -210,24 +210,93 @@ resource "aws_lambda_event_source_mapping" "upload" {
 
 resource "aws_lambda_event_source_mapping" "download" {
   event_source_arn                   = aws_sqs_queue.transcribe_to_docx.arn
-  function_name                      = aws_lambda_function.docx.arn
+  function_name                      = module.step-proxy.lambda_function_name
   batch_size                         = 1
   maximum_batching_window_in_seconds = 0
   function_response_types            = ["ReportBatchItemFailures"]
 }
 
-resource "aws_iam_role" "lambda_step" {
-  name = "${var.prefix}-${var.lambda_step}-role"
-  assume_role_policy = jsonencode({
-    "Version" : "2012-10-17",
-    "Statement" : [
-      {
-        Action : "sts:AssumeRole",
-        Effect : "Allow",
-        Principal : {
-          "Service" : "lambda.amazonaws.com"
+# resource "aws_iam_role" "step_proxy" {
+#   name = "${var.prefix}-${var.lambda_step}-role"
+#   assume_role_policy = jsonencode({
+#     "Version" : "2012-10-17",
+#     "Statement" : [
+#       {
+#         Action : "sts:AssumeRole",
+#         Effect : "Allow",
+#         Principal : {
+#           "Service" : "lambda.amazonaws.com"
+#         }
+#       }
+#     ]
+#   })
+# }
+
+# resource "aws_iam_policy" "step_proxy" {
+#   name = "${var.prefix}-${var.lambda_step}-policy"
+#   policy = jsonencode({
+#     "Version" : "2012-10-17",
+#     "Statement" : [
+#       {
+#         "Effect" : "Allow",
+#         "Action" : [
+#           "logs:CreateLogGroup",
+#           "logs:CreateLogStream",
+#           "logs:PutLogEvents"
+#         ],
+#         "Resource" : "*"
+#       }
+#     ]
+#   })
+# }
+
+# resource "aws_iam_role_policy_attachment" "step_proxy" {
+#   role       = aws_iam_role.step_proxy.name
+#   policy_arn = aws_iam_policy.step_proxy.arn
+# }
+
+module "step-proxy" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = ">= 7.14.0"
+
+  function_name = "${var.prefix}-${var.lambda_step}"
+  handler       = "step_proxy.lambda_handler"
+  runtime       = "python3.9"
+  publish       = true
+
+  source_path = "../src/lambda/step_proxy"
+
+  environment_variables = {
+    LOG_LEVEL         = "INFO"
+    STATE_MACHINE_ARN = module.step_function.state_machine_arn
+  }
+
+  attach_policy_json = true
+  policy_json        = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "StepFunction",
+            "Effect": "Allow",
+            "Action": "states:StartExecution",
+            "Resource": "${module.step_function.state_machine_arn}"
+        },
+        {
+            "Sid": "SQS",
+            "Effect": "Allow",
+            "Action": [
+                "sqs:ReceiveMessage",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes"
+            ],
+            "Resource": "${aws_sqs_queue.transcribe_to_docx.arn}"
         }
-      }
     ]
-  })
+  }
+EOF
+
+  tags = {
+    Project = "ATS"
+  }
 }
