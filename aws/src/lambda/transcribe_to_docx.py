@@ -672,9 +672,9 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False)
 
 def lambda_handler(event, context):
     """
-    Entrypoint for the Lambda function. Pulls batch of messages from SQS standard queue.
+    Entrypoint for the Lambda function.
     """
-    print(f"audio_to_transcribe.lambda_handler started")
+    print("transcribe_to_docx.lambda_handler started")
 
     # Get environment variables
     TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
@@ -682,117 +682,111 @@ def lambda_handler(event, context):
     BUCKET = os.environ["BUCKET"]               # S3 output bucket name
     DOCX_MAX_DURATION = float(os.environ['DOCX_MAX_DURATION'])   # Max transcription duration to process
 
-    # Process messages in batch
-    batch_failures = []
-    for record in event["Records"]:
+    # Make sure there is enough time to process this transcript
+    if context.get_remaining_time_in_millis() < TIMEOUT:
+        print("Not enough time to process this transcript")
+        return {
+            'statusCode': 500,
+            'body': 'Not enough time to process this transcript'
+        }
 
-        message_id = record["messageId"]
-        # Make sure there is enough time to process this message
-        if context.get_remaining_time_in_millis() < TIMEOUT:
-            print(f"Not enough time to process this message: {message_id}")
-            batch_failures.append({"itemIdentifier": message_id})
-            continue
-
-        # The EventBridge message is stored in "body" field
-        event_message = json.loads(record["body"])
-        print(f"Event message: {event_message}")
-
-        # If the job failed, there is nothing for us to do here
+    # Attempt to retrieve job details
+    job_status = event["detail"]["TranscriptionJobStatus"]
+    job_name = event["detail"]["TranscriptionJobName"]
+    try:
+        job_info = ts_client.get_transcription_job(TranscriptionJobName=job_name)["TranscriptionJob"]
+        print(f"Job info: {job_info}")
+    except Exception as e:
+        # Can't retrieve job details, so we can't do anything
         # Note: message will be deleted from queue
-        job_status = event_message["detail"]["TranscriptionJobStatus"]
-        job_name = event_message["detail"]["TranscriptionJobName"]
-        if job_status == "FAILED":
-            title = "Transcription job failed"
-            message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
-            color = RED
-            ats_utilities.notify_teams(WEBHOOK, title, message, color)
-            continue
+        print(e)
+        print(f"Failed to retrieve job details for {job_name}")
+        return {
+            'statusCode': 500,
+            'body': 'Failed to retrieve job details'
+        }
 
-        # Attempt to retrieve job details
-        try:
-            job_info = ts_client.get_transcription_job(TranscriptionJobName=job_name)["TranscriptionJob"]
-            print(f"Job info: {job_info}")
-        except Exception as e:
-            # Can't retrieve job details, so we can't do anything
-            # Note: message will be deleted from queue
-            print(e)
-            print(f"Failed to retrieve job details for {job_name}")
-            continue
-
-        # Check duration and error if exceeded
-        totalDuration = 0
-        if "LanguageCode" in job_info: # AWS sample job_info
-            totalDuration = job_info["DurationInSeconds"]
-        elif "LanguageCodes" in job_info: # AWS job_info
-            for languageCodes in job_info["LanguageCodes"]: totalDuration += languageCodes["DurationInSeconds"]
-        elif "language_codes" in job_info: # json job_info
-            for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
-        print(f"totalDuration = {totalDuration}")
-        if totalDuration > DOCX_MAX_DURATION:
-            message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
-            print(f"{message}")
-            ats_utilities.notify_teams(WEBHOOK, "Transcription job stopped", message, RED)
-            deleteUploadFileHelper(job_status, job_info, WEBHOOK)
-            continue
-
-        # Try and download the transcript JSON
-        if "RedactedTranscriptFileUri" in job_info["Transcript"]:
-            download_url = job_info["Transcript"]["RedactedTranscriptFileUri"]
-        else:
-            download_url = job_info["Transcript"]["TranscriptFileUri"]
-        try:
-            transcript = get_json(download_url)
-        except Exception as e:
-            # Message will stay in queue for retry
-            print(e)
-            print(f"Failed to download transcript for {job_name}")
-            batch_failures.append({"itemIdentifier": message_id})
-            continue
-
-        # Check the job settings for speaker/channel ID
-        if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
-            speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
-        elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
-            speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
-        else:
-            # TODO: Handle non-speaker mode
-            # We do not support non-speaker mode in this version
-            # Note: message will be deleted from the queue
-            print(f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version.")
-            continue
-
-        # Write out the file
-        os.chdir("/tmp")
-        output_file = job_info["TranscriptionJobName"] + ".docx"
-        write(transcript, speech_segments, job_info, output_file)
-
-        # Upload file to S3
-        # Use bucket provided in the environment variable, plus today's date
-        key = today + "/" + output_file
-        try:
-            s3.upload_file(output_file, BUCKET, key)
-        except Exception as e:
-            print(e)
-            print(f"Failed to upload file {output_file} to S3 bucket {BUCKET}")
-            batch_failures.append({"itemIdentifier": message_id})
-            continue
-
+    # Check duration and error if exceeded
+    totalDuration = 0
+    if "LanguageCode" in job_info: # AWS sample job_info
+        totalDuration = job_info["DurationInSeconds"]
+    elif "LanguageCodes" in job_info: # AWS job_info
+        for languageCodes in job_info["LanguageCodes"]: totalDuration += languageCodes["DurationInSeconds"]
+    elif "language_codes" in job_info: # json job_info
+        for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
+    print(f"totalDuration = {totalDuration}")
+    if totalDuration > DOCX_MAX_DURATION:
+        message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        print(f"{message}")
+        ats_utilities.notify_teams(WEBHOOK, "Transcription job stopped", message, RED)
         deleteUploadFileHelper(job_status, job_info, WEBHOOK)
+        return {
+            'statusCode': 500,
+            'body': 'Transcript too long to process'
+        }
 
-        title = "Transcription job completed"
-        print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
-        # Send message to Teams channel
-        message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
-        color = GREEN
-        ats_utilities.notify_teams(WEBHOOK, title, message, color)
+    # Try and download the transcript JSON
+    if "RedactedTranscriptFileUri" in job_info["Transcript"]:
+        download_url = job_info["Transcript"]["RedactedTranscriptFileUri"]
+    else:
+        download_url = job_info["Transcript"]["TranscriptFileUri"]
+    try:
+        transcript = get_json(download_url)
+    except Exception as e:
+        # Message will stay in queue for retry
+        print(e)
+        print(f"Failed to download transcript for {job_name}")
+        return {
+            'statusCode': 500,
+            'body': 'Failed to download transcript'
+        }
 
-    # Send failed messages back to queue for retry
-    sqs_response = {}
-    if len(batch_failures) > 0:
-        sqs_response["batchItemFailures"] = batch_failures
-    print(f"Function ending. Response={sqs_response}")
+    # Check the job settings for speaker/channel ID
+    if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
+        speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
+    elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
+        speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
+    else:
+        # TODO: Handle non-speaker mode
+        # We do not support non-speaker mode in this version
+        # Note: message will be deleted from the queue
+        print(f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version.")
+        return {
+            'statusCode': 500,
+            'body': 'Channel/speaker mode must be used in this version'
+        }
 
-    return sqs_response
+    # Write out the file
+    os.chdir("/tmp")
+    output_file = job_info["TranscriptionJobName"] + ".docx"
+    write(transcript, speech_segments, job_info, output_file)
+
+    # Upload file to S3
+    # Use bucket provided in the environment variable, plus today's date
+    key = today + "/" + output_file
+    try:
+        s3.upload_file(output_file, BUCKET, key)
+    except Exception as e:
+        print(e)
+        print(f"Failed to upload file {output_file} to S3 bucket {BUCKET}")
+        return {
+            'statusCode': 500,
+            'body': 'Failed to upload DOCX to S3'
+        }
+
+    deleteUploadFileHelper(job_status, job_info, WEBHOOK)
+
+    title = "Transcription job completed"
+    print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
+    # Send message to Teams channel
+    message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
+    color = GREEN
+    ats_utilities.notify_teams(WEBHOOK, title, message, color)
+
+    return {
+        'statusCode': 200,
+        'body': 'DOCX created'
+    }
 
 def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
     """
