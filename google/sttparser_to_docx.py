@@ -8,8 +8,11 @@ import os
 from google.cloud import storage
 from urllib.parse import urlparse
 from docx.shared import Cm, Mm, Pt, Inches, RGBColor
-from docx.enum.text import WD_COLOR_INDEX
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx import Document
+
+# Common formats and styles
+TABLE_STYLE_STANDARD = "Light List"
 
 confidence_env = int(os.environ.get('CONFIDENCE', 90))
 
@@ -74,12 +77,12 @@ def print_transcript(response, document, speakers=False):
 
             if next_speaker != current_speaker:
                 #New speaker
+                current_ts = word['startTime']
                 paragraph = document.add_paragraph()
                 run = paragraph.add_run()
                 run.add_text(f"[{timestamp(current_ts)}] Speaker {current_speaker}: ")
                 run = paragraph.add_run()
                 current_speaker = next_speaker
-                current_ts = word['startTime']
 
             #Confidence highlighting and add word
             confidence = word['confidence']
@@ -179,6 +182,45 @@ def main():
     write_custom_text_header(document, "Indiana University Social Science Research Commons")
 
     write_custom_text_header(document, "Google Cloud Transcribe Audio Source")
+    table = document.add_table(rows=1, cols=2)
+    table.style = document.styles[TABLE_STYLE_STANDARD]
+    table.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    table.autofit = False
+    table.allow_autofit = False
+    table.columns[0].width = Inches(2.0)
+    table.columns[1].width = Inches(2.0)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Job Name"
+    hdr_cells[1].text = os.path.basename(__file__)
+    job_data = []
+    if 'results' in response and len(response['results']) > 0:
+        last_result = response['results'][-2]
+        dur_text = last_result.get('resultEndTime', "00:00:00")
+        job_data.append({"name": "Audio Duration", "value": dur_text})
+    if args.speakers:
+        job_data.append({"name": "Audio Identification", "value": "Speaker-separated"})
+    else:
+        job_data.append({"name": "Audio Identification", "value": "Channel-separated"})
+    if 'results' in response and len(response['results']) > 0:
+        languages = set()
+        for result in response['results']:
+            languages.add(result.get('languageCode', ""))
+        job_data.append({"name": "Language(s)", "value": ', '.join(filter(None, languages))})
+
+        total_confidence = 0
+        confidence_count = 0
+        for result in response.get('results', []):
+            for alternative in result.get('alternatives', []):
+                for word in alternative.get('words', []):
+                    total_confidence += word.get('confidence', 0)
+                    confidence_count += 1
+        average_confidence = (total_confidence / confidence_count) * 100
+        job_data.append({"name": "Average Confidence", "value": f"{average_confidence:.2f}%"})
+
+    for next_row in job_data:
+        row_cells = table.add_row().cells
+        row_cells[0].text = next_row["name"]
+        row_cells[1].text = next_row["value"]
 
     print_transcript(response, document, args.speakers)
 
