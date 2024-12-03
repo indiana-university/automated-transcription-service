@@ -348,8 +348,10 @@ def write(data, speech_segments, job_info, output_file):
     # We can infer diarization mode from the JSON results data structure
     if "speaker_labels" in data["results"]:
         job_data.append({"name": "Audio Identification", "value": "Speaker-separated"})
-    else:
+    elif "channel_labels" in data["results"]:
         job_data.append({"name": "Audio Identification", "value": "Channel-separated"})
+    elif "audio_segments" in data["results"]:
+        job_data.append({"name": "Audio Identification", "value": "Audio-segments"})
 
     # Some information is only in the job info
     if job_info is not None:
@@ -513,7 +515,7 @@ def merge_speaker_segments(input_segment_list):
 
     return outputSegmentList
 
-def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False):
+def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False, isAudioSegmentsMode=False):
     """
     This creates a list of per-turn speech segments based upon the transcript data.  It has to work in two modes:
         a) Speaker-separated audio
@@ -522,6 +524,7 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False)
     :param data: JSON result data from Transcribe
     :param isSpeakerMode: (optional) Boolean indicating whether the audio was speaker-separated
     :param isChannelMode: (optional) Boolean indicating whether the audio was channel-separated
+    :param isAudioSegmentsMode: (optional) Boolean indicating whether the audio was segments-separated
     :return: List of transcription speech segments
     """
     speechSegmentList = []
@@ -666,6 +669,50 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False)
         # merge together turns from the same speaker that are very close together
         speechSegmentList = sorted(speechSegmentList, key=lambda segment: segment.segmentStartTime)
         speechSegmentList = merge_speaker_segments(speechSegmentList)
+
+    # Process an Audio-segment non-analytics file
+    elif isAudioSegmentsMode:
+        for segment in data["results"]["audio_segments"]:
+            nextSpeechSegment = SpeechSegment()
+            nextSpeechSegment.segmentStartTime = float(segment["start_time"])
+            nextSpeechSegment.segmentEndTime = float(segment["end_time"])
+            nextSpeechSegment.segmentText = segment["transcript"]
+            nextSpeechSegment.segmentSpeaker = ""  # Default speaker label for audio segments
+            confidenceList = []
+
+            for item_id in segment["items"]:
+                item = data["results"]["items"][item_id]
+                if item["type"] == "pronunciation":
+                    word_result = item["alternatives"][0]
+                    confidence = float(word_result["confidence"])
+                    wordToAdd = word_result["content"]
+                    if confidenceList:
+                        wordToAdd = " " + wordToAdd  # Add space before each word except the first one
+                    confidenceList.append({
+                        "text": wordToAdd,
+                        "confidence": confidence,
+                        "start_time": float(item["start_time"]),
+                        "end_time": float(item["end_time"])
+                    })
+                elif item["type"] == "punctuation":
+                    word_result = item["alternatives"][0]
+                    wordToAdd = word_result["content"]
+                    if confidenceList:
+                        confidenceList[-1]["text"] += wordToAdd  # Last word
+
+            nextSpeechSegment.segmentConfidence = confidenceList
+
+            # Check if new segment based on the delay. There are no speaker or channels like the previous two modes so we can't check that
+            if speechSegmentList and (nextSpeechSegment.segmentStartTime - speechSegmentList[-1].segmentEndTime) >= START_NEW_SEGMENT_DELAY:
+                speechSegmentList.append(nextSpeechSegment)
+            else:
+                if speechSegmentList:
+                    speechSegmentList[-1].segmentEndTime = nextSpeechSegment.segmentEndTime
+                    speechSegmentList[-1].segmentText += " " + nextSpeechSegment.segmentText
+                    for wordConfidence in confidenceList:
+                        speechSegmentList[-1].segmentConfidence.append(wordConfidence)
+                else:
+                    speechSegmentList.append(nextSpeechSegment)
 
     # Return our full turn-by-turn speaker segment list
     return speechSegmentList
@@ -926,6 +973,8 @@ def generate_document():
         speech_segments = create_turn_by_turn_segments(json_data, isChannelMode = True)
     elif "speaker_labels" in json_data["results"]:
         speech_segments = create_turn_by_turn_segments(json_data, isSpeakerMode = True)
+    elif "audio_segments" in json_data["results"]:
+        speech_segments = create_turn_by_turn_segments(json_data, isAudioSegmentsMode = True)
     else:
         print("FAIL: No speaker or channel information found in JSON file.")
         exit(-1)
