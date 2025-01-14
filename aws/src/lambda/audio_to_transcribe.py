@@ -6,13 +6,13 @@ import os
 import uuid
 import re
 
-import ats_utilities
-
 # Get current date for S3 folder name:
 today = dt.now().strftime("%Y%m%d")
 
 # S3 client to read/write files
 s3 = boto3.client('s3')
+
+sns_client = boto3.client('sns')
 
 # Transcribe client to read job results
 ts_client = boto3.client('transcribe')
@@ -27,7 +27,6 @@ def lambda_handler(event, context):
     print(f"audio_to_transcribe.lambda_handler started")
 
     s3bucketOutput = os.environ["BUCKET"]
-    WEBHOOK = os.environ['WEBHOOK_URL']
     batch_failures = []
     for record in event["Records"]:
         event_message = json.loads(record["body"])
@@ -60,7 +59,17 @@ def lambda_handler(event, context):
             title = "Could not start transcription job"
             message = f"File name:<br><pre>{s3Path}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            ats_utilities.notify_teams(WEBHOOK, title, message, color)
+            sns_client.publish(
+                TopicArn=os.environ['SNS_TOPIC_ARN'],
+                Message=message,
+                Subject=title,
+                MessageAttributes={
+                    'color': {
+                        'DataType': 'String',
+                        'StringValue': color
+                    }
+                }
+            )
             batch_failures.append({"itemIdentifier": record["messageId"]})
             continue
 

@@ -8,7 +8,7 @@ ARG FUNCTION_DIR
 
 # Copy function code
 RUN  mkdir -p ${FUNCTION_DIR}
-COPY ats_utilities.py ${FUNCTION_DIR}
+COPY sns_to_ms_teams_webhook.py ${FUNCTION_DIR}
 COPY audio_to_transcribe.py ${FUNCTION_DIR}
 COPY transcribe_to_docx.py ${FUNCTION_DIR}
 

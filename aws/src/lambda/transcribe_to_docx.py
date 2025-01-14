@@ -19,7 +19,6 @@ from docx.oxml import parse_xml
 import argparse
 from pathlib import Path
 from time import perf_counter
-import ats_utilities
 
 # Common formats and styles
 CUSTOM_STYLE_HEADER = "CustomHeader"
@@ -60,6 +59,8 @@ today = dt.now().strftime("%Y%m%d")
 
 # S3 client to read/write files
 s3 = boto3.client('s3')
+
+sns_client = boto3.client('sns')
 
 # Transcribe client to read job results
 if __name__ != "__main__": ts_client = boto3.client('transcribe')
@@ -725,7 +726,6 @@ def lambda_handler(event, context):
 
     # Get environment variables
     TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
-    WEBHOOK = os.environ['WEBHOOK_URL']         # Teams webhook URL
     BUCKET = os.environ["BUCKET"]               # S3 output bucket name
     DOCX_MAX_DURATION = float(os.environ['DOCX_MAX_DURATION'])   # Max transcription duration to process
 
@@ -752,7 +752,17 @@ def lambda_handler(event, context):
             title = "Transcription job failed"
             message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
             color = RED
-            ats_utilities.notify_teams(WEBHOOK, title, message, color)
+            sns_client.publish(
+                TopicArn=os.environ['SNS_TOPIC_ARN'],
+                Message=message,
+                Subject=title,
+                MessageAttributes={
+                    'color': {
+                        'DataType': 'String',
+                        'StringValue': color
+                    }
+                }
+            )
             continue
 
         # Attempt to retrieve job details
@@ -778,8 +788,18 @@ def lambda_handler(event, context):
         if totalDuration > DOCX_MAX_DURATION:
             message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
             print(f"{message}")
-            ats_utilities.notify_teams(WEBHOOK, "Transcription job stopped", message, RED)
-            deleteUploadFileHelper(job_status, job_info, WEBHOOK)
+            sns_client.publish(
+                TopicArn=os.environ['SNS_TOPIC_ARN'],
+                Message=message,
+                Subject="Transcription job stopped",
+                MessageAttributes={
+                    'color': {
+                        'DataType': 'String',
+                        'StringValue': RED
+                    }
+                }
+            )
+            deleteUploadFileHelper(job_status, job_info)
             continue
 
         # Try and download the transcript JSON
@@ -824,14 +844,24 @@ def lambda_handler(event, context):
             batch_failures.append({"itemIdentifier": message_id})
             continue
 
-        deleteUploadFileHelper(job_status, job_info, WEBHOOK)
+        deleteUploadFileHelper(job_status, job_info)
 
         title = "Transcription job completed"
         print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
         # Send message to Teams channel
         message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
         color = GREEN
-        ats_utilities.notify_teams(WEBHOOK, title, message, color)
+        sns_client.publish(
+            TopicArn=os.environ['SNS_TOPIC_ARN'],
+            Message=message,
+            Subject=title,
+            MessageAttributes={
+                'color': {
+                    'DataType': 'String',
+                    'StringValue': color
+                }
+            }
+        )
 
     # Send failed messages back to queue for retry
     sqs_response = {}
@@ -841,13 +871,12 @@ def lambda_handler(event, context):
 
     return sqs_response
 
-def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
+def deleteUploadFileHelper(job_status, job_info):
     """
     Helper to delete the upload file
 
     :param job_status: event_message TranscriptionJobStatus
     :param job_info: get_transcription_job TranscriptionJob
-    :param WEBHOOK: webhook for teams notification
     """
     if job_status == "COMPLETED":
         upload_uri = job_info["Media"]["MediaFileUri"]
@@ -857,7 +886,17 @@ def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
             s3.delete_object(Bucket=upload_bucket, Key=upload_key)
         except Exception as e:
             print(e)
-            ats_utilities.notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
+            sns_client.publish(
+                TopicArn=os.environ['SNS_TOPIC_ARN'],
+                Message=f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}",
+                Subject='Failed to delete upload file',
+                MessageAttributes={
+                    'color': {
+                        'DataType': 'String',
+                        'StringValue': RED
+                    }
+                }
+            )
 
 def load_transcribe_job_status(cli_args):
     """
