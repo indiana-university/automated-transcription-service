@@ -16,3 +16,10 @@ provider "aws" {
   profile                  = var.profile
   region                   = var.region
 }
+
+locals {
+  tags = {
+    Environment = "dev"
+    Terraform   = "true"
+  }
+}
