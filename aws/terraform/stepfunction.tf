@@ -55,18 +55,56 @@ module "step_function" {
         {
           "Variable": "$.detail.TranscriptionJobStatus",
           "StringEquals": "COMPLETED",
-          "Next": "Yes"
+          "Next": "Create DOCX"
         }
       ],
-      "Default": "No"
+      "Default": "ERROR"
     },
-    "No": {
+    "Create DOCX": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "${aws_lambda_function.docx.arn}:$LATEST"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "DynamoDB PutItem",
+      "ResultPath": null
+    },
+    "DynamoDB PutItem": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "ats-jobs-table",
+        "Item": {
+          "PK": {
+            "S": "jobs"
+          },
+          "SK": {
+            "S.$": "$.detail.TranscriptionJobName"
+          }
+        }
+      },
+      "Next": "COMPLETED"
+    },
+    "ERROR": {
       "Type": "Fail",
       "ErrorPath": "$.detail.TranscriptionJobStatus"
     },
-    "Yes": {
-      "Type": "Pass",
-      "End": true
+    "COMPLETED": {
+      "Type": "Succeed"
     }
   }
 }
