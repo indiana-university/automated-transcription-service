@@ -3,7 +3,7 @@ from urllib.request import urlopen
 from urllib.request import Request
 
 def lambda_handler(event, context):
-    const webhook = os.environ['WEBHOOK_URL']
+    webhook = os.environ['WEBHOOK_URL']
 
     if not webhook or webhook == "DISABLED":
         print(f"notify_teams disabled, logging message instead: {title} {content}")
