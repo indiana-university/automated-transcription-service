@@ -6,14 +6,22 @@ from urllib.request import Request
 def lambda_handler(event, context):
     webhook = os.environ['WEBHOOK_URL']
 
+    title = event['Records'][0]['Sns']['Subject']
+    content = event['Records'][0]['Sns']['Message']
+
     if not webhook or webhook == "DISABLED":
         print(f"notify_teams disabled, logging message instead: {title} {content}")
-        return 200
 
-    msg = {'text': event['Records'][0]['Sns']['Message']}
-    headers = {'Content-Type': 'application/json'}
-    response = requests.post(webhook, headers=headers, data=json.dumps(msg).encode('utf-8'))
-    return {
-        'statusCode': 200,
-        'body': "Teams message sent!"
-    }
+    if not title:
+        title = "ATS Notification"
+
+    message = {"summary": title, "sections": [{"activityTitle": title, "activitySubtitle": content}]}
+    request_data = json.dumps(message).encode("utf-8")
+    req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
+    try:
+        response = urlopen(req)
+        if response.status != 200:
+            print(f"Failed to notify Teams. Response: {response.status}")
+        return response.status
+    except Exception as e:
+        print(e)
