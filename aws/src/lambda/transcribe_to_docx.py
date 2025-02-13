@@ -718,12 +718,17 @@ def lambda_handler(event, context):
     if totalDuration > DOCX_MAX_DURATION:
         message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
         print(f"{message}")
-        ats_utilities.notify_teams(WEBHOOK, "Transcription job stopped", message, RED)
+        color = RED
+        title = "Transcription job stopped"
+        ats_utilities.notify_teams(WEBHOOK, title, message, color)
         deleteUploadFileHelper(job_status, job_info, WEBHOOK)
         return {
             'statusCode': 500,
-            'body': 'Transcript too long to process'
+            'body': {
+                'subject': title,
+                'message': message,
         }
+    }
 
     # Try and download the transcript JSON
     if "RedactedTranscriptFileUri" in job_info["Transcript"]:
@@ -779,13 +784,20 @@ def lambda_handler(event, context):
     title = "Transcription job completed"
     print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
     # Send message to Teams channel
-    message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
+    lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
+    default_message = f"Transcription job {job_name} completed. Transcript available at s3://{BUCKET}/{key}"
     color = GREEN
-    ats_utilities.notify_teams(WEBHOOK, title, message, color)
+    ats_utilities.notify_teams(WEBHOOK, title, default_message, color)
 
     return {
         'statusCode': 200,
-        'body': 'DOCX created'
+        'body': {
+            'TranscriptionJobName': job_name,
+            'TranscriptionDuration': totalDuration,
+            'subject': title,
+            'lambda': lambda_message,
+            'default': default_message,
+        }
     }
 
 def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
