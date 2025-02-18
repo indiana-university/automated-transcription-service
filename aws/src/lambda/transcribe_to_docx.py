@@ -19,7 +19,6 @@ from docx.oxml import parse_xml
 import argparse
 from pathlib import Path
 from time import perf_counter
-import ats_utilities
 
 # Common formats and styles
 CUSTOM_STYLE_HEADER = "CustomHeader"
@@ -677,18 +676,8 @@ def lambda_handler(event, context):
     print("transcribe_to_docx.lambda_handler started")
 
     # Get environment variables
-    TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
-    WEBHOOK = os.environ['WEBHOOK_URL']         # Teams webhook URL
     BUCKET = os.environ["BUCKET"]               # S3 output bucket name
     DOCX_MAX_DURATION = float(os.environ['DOCX_MAX_DURATION'])   # Max transcription duration to process
-
-    # Make sure there is enough time to process this transcript
-    if context.get_remaining_time_in_millis() < TIMEOUT:
-        print("Not enough time to process this transcript")
-        return {
-            'statusCode': 500,
-            'body': 'Not enough time to process this transcript'
-        }
 
     # Attempt to retrieve job details
     job_status = event["detail"]["TranscriptionJobStatus"]
@@ -698,12 +687,16 @@ def lambda_handler(event, context):
         print(f"Job info: {job_info}")
     except Exception as e:
         # Can't retrieve job details, so we can't do anything
-        # Note: message will be deleted from queue
         print(e)
-        print(f"Failed to retrieve job details for {job_name}")
+        title = "Transcription job failed"
+        default_message = f"Failed to retrieve job details for {job_name}"
         return {
             'statusCode': 500,
-            'body': 'Failed to retrieve job details'
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
         }
 
     # Check duration and error if exceeded
@@ -716,19 +709,19 @@ def lambda_handler(event, context):
         for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
     print(f"totalDuration = {totalDuration}")
     if totalDuration > DOCX_MAX_DURATION:
-        message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
-        print(f"{message}")
-        color = RED
+        default_message = f"Job name: {job_name}. Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        lambda_message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        print(default_message)
         title = "Transcription job stopped"
-        ats_utilities.notify_teams(WEBHOOK, title, message, color)
-        deleteUploadFileHelper(job_status, job_info, WEBHOOK)
+        deleteUploadFileHelper(job_status, job_info)
         return {
             'statusCode': 500,
             'body': {
                 'subject': title,
-                'message': message,
+                'lambda': lambda_message,
+                'default': default_message,
+            }
         }
-    }
 
     # Try and download the transcript JSON
     if "RedactedTranscriptFileUri" in job_info["Transcript"]:
@@ -738,12 +731,17 @@ def lambda_handler(event, context):
     try:
         transcript = get_json(download_url)
     except Exception as e:
-        # Message will stay in queue for retry
         print(e)
-        print(f"Failed to download transcript for {job_name}")
+        title = "Transcription job failed"
+        default_message = f"Failed to download transcript for {job_name}"
+        print(default_message)
         return {
             'statusCode': 500,
-            'body': 'Failed to download transcript'
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
         }
 
     # Check the job settings for speaker/channel ID
@@ -752,13 +750,17 @@ def lambda_handler(event, context):
     elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
         speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
     else:
-        # TODO: Handle non-speaker mode
         # We do not support non-speaker mode in this version
-        # Note: message will be deleted from the queue
-        print(f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version.")
+        title = "Transcription job failed"
+        default_message = f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version."
+        print(default_message)
         return {
             'statusCode': 500,
-            'body': 'Channel/speaker mode must be used in this version'
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
         }
 
     # Write out the file
@@ -773,22 +775,24 @@ def lambda_handler(event, context):
         s3.upload_file(output_file, BUCKET, key)
     except Exception as e:
         print(e)
-        print(f"Failed to upload file {output_file} to S3 bucket {BUCKET}")
+        title = "Transcription job failed"
+        default_message = f"Failed to upload file {output_file} to S3 bucket {BUCKET}"
+        print(default_message)
         return {
             'statusCode': 500,
-            'body': 'Failed to upload DOCX to S3'
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
         }
 
-    deleteUploadFileHelper(job_status, job_info, WEBHOOK)
+    deleteUploadFileHelper(job_status, job_info)
 
     title = "Transcription job completed"
     print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
-    # Send message to Teams channel
     lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
     default_message = f"Transcription job {job_name} completed. Transcript available at s3://{BUCKET}/{key}"
-    color = GREEN
-    ats_utilities.notify_teams(WEBHOOK, title, default_message, color)
-
     return {
         'statusCode': 200,
         'body': {
@@ -800,7 +804,7 @@ def lambda_handler(event, context):
         }
     }
 
-def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
+def deleteUploadFileHelper(job_status, job_info):
     """
     Helper to delete the upload file
 
@@ -816,7 +820,6 @@ def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
             s3.delete_object(Bucket=upload_bucket, Key=upload_key)
         except Exception as e:
             print(e)
-            ats_utilities.notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
 
 def load_transcribe_job_status(cli_args):
     """

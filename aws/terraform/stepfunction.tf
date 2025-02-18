@@ -58,14 +58,23 @@ module "step_function" {
           "Next": "Create DOCX"
         }
       ],
-      "Default": "ERROR"
+      "Default": "Transcribe failed notification"
+    },
+    "Transcribe failed notification": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message": "Transcribe job failed. See CloudWatch logs for details.",
+        "TopicArn": "arn:aws:sns:us-east-1:859011005590:ats-notifications"
+      },
+      "Next": "ERROR"
     },
     "Create DOCX": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "Payload.$": "$",
-        "FunctionName": "${aws_lambda_function.docx.arn}:$LATEST"
+        "FunctionName": "arn:aws:lambda:us-east-1:859011005590:function:ats-transcribe-to-docx:$LATEST"
       },
       "Retry": [
         {
@@ -80,8 +89,34 @@ module "step_function" {
           "BackoffRate": 2
         }
       ],
-      "Next": "DynamoDB PutItem",
+      "Next": "ATS Notification"
+    },
+    "ATS Notification": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:859011005590:ats-notifications",
+        "Subject.$": "$.body.subject",
+        "MessageStructure": "json",
+        "Message": {
+          "default.$": "$.body.default",
+          "lambda.$": "$.body.lambda"
+        }
+      },
+      "Next": "Choice",
+      "InputPath": "$.Payload",
       "ResultPath": null
+    },
+    "Choice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Payload.statusCode",
+          "NumericEquals": 200,
+          "Next": "DynamoDB PutItem"
+        }
+      ],
+      "Default": "ERROR"
     },
     "DynamoDB PutItem": {
       "Type": "Task",
@@ -93,15 +128,15 @@ module "step_function" {
             "S": "jobs"
           },
           "SK": {
-            "S.$": "$.detail.TranscriptionJobName"
+            "S.$": "$.body.TranscriptionJobName"
           }
         }
       },
-      "Next": "COMPLETED"
+      "Next": "COMPLETED",
+      "InputPath": "$.Payload"
     },
     "ERROR": {
-      "Type": "Fail",
-      "ErrorPath": "$.detail.TranscriptionJobStatus"
+      "Type": "Fail"
     },
     "COMPLETED": {
       "Type": "Succeed"

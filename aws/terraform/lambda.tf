@@ -300,3 +300,24 @@ EOF
     Project = "ATS"
   }
 }
+
+module "teams-notification" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = ">= 7.14.0"
+
+  function_name = "${var.prefix}-teams-notification"
+  handler       = "sns_to_teams.lambda_handler"
+  runtime       = "python3.9"
+  publish       = true
+
+  source_path = "../src/lambda/notifications"
+
+  environment_variables = {
+    LOG_LEVEL         = "INFO"
+    WEBHOOK_URL       = var.webhook
+  }
+
+  tags = {
+    Project = "ATS"
+  }
+}
