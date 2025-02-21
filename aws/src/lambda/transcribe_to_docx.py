@@ -702,10 +702,13 @@ def lambda_handler(event, context):
     # Check duration and error if exceeded
     totalDuration = 0
     if "LanguageCode" in job_info: # AWS sample job_info
+        languageCodes = job_info["LanguageCode"]
         totalDuration = job_info["DurationInSeconds"]
     elif "LanguageCodes" in job_info: # AWS job_info
+        languageCodes = job_info["LanguageCodes"]
         for languageCodes in job_info["LanguageCodes"]: totalDuration += languageCodes["DurationInSeconds"]
     elif "language_codes" in job_info: # json job_info
+        languageCodes = job_info["language_codes"]
         for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
     print(f"totalDuration = {totalDuration}")
     if totalDuration > DOCX_MAX_DURATION:
@@ -798,6 +801,7 @@ def lambda_handler(event, context):
         'body': {
             'TranscriptionJobName': job_name,
             'TranscriptionDuration': totalDuration,
+            'LanguageCodes': languageCodes,
             'subject': title,
             'lambda': lambda_message,
             'default': default_message,
