@@ -34,6 +34,9 @@ IMAGE_URL_BANNER = "https://assets.iu.edu/brand/3.3.x/trident-large.png"
 # Additional Constants
 START_NEW_SEGMENT_DELAY = 2.0       # After n seconds pause by one speaker, put next speech in new segment
 
+# Global variables
+global_average_confidence = "0.0"
+
 class SpeechSegment:
     """ Class to hold information about a single speech segment """
     def __init__(self):
@@ -296,6 +299,9 @@ def write(data, speech_segments, job_info, output_file):
     :param summaries_detected: Flag to indicate presence of call summary data
     """
 
+    # Global variable to hold the average confidence score
+    global global_average_confidence
+
     tempFiles = []
 
     # Initiate Document, orientation and margins
@@ -383,7 +389,8 @@ def write(data, speech_segments, job_info, output_file):
     # Finish with the confidence scores (if we have any)
     stats = generate_confidence_stats(speech_segments)
     if len(stats["accuracy"]) > 0:
-        job_data.append({"name": "Average Confidence", "value": str(round(statistics.mean(stats["accuracy"]), 2)) + "%"})
+        global_average_confidence = str(round(statistics.mean(stats["accuracy"]), 2))
+        job_data.append({"name": "Average Confidence", "value": global_average_confidence + "%"})
 
     # Place all of our job-summary fields into the Table, one row at a time
     for next_row in job_data:
@@ -700,20 +707,27 @@ def lambda_handler(event, context):
         }
 
     # Check duration and error if exceeded
-    totalDuration = 0
+    total_duration = 0
     if "LanguageCode" in job_info: # AWS sample job_info
-        languageCodes = job_info["LanguageCode"]
-        totalDuration = job_info["DurationInSeconds"]
+        #languages = job_info["LanguageCode"]
+        languages = [job_info["LanguageCode"]]
+        total_duration = job_info["DurationInSeconds"]
     elif "LanguageCodes" in job_info: # AWS job_info
-        languageCodes = job_info["LanguageCodes"]
-        for languageCodes in job_info["LanguageCodes"]: totalDuration += languageCodes["DurationInSeconds"]
+        #languages = job_info["LanguageCodes"]
+        languages = []
+        for languageCodes in job_info["LanguageCodes"]: 
+            total_duration += languageCodes["DurationInSeconds"]
+            languages.append(languageCodes["LanguageCode"])
     elif "language_codes" in job_info: # json job_info
-        languageCodes = job_info["language_codes"]
-        for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
-    print(f"totalDuration = {totalDuration}")
-    if totalDuration > DOCX_MAX_DURATION:
-        default_message = f"Job name: {job_name}. Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
-        lambda_message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        #languages = job_info["language_codes"]
+        languages = []
+        for languageCodes in job_info["language_codes"]: 
+            total_duration += languageCodes["duration_in_seconds"]
+            languages.append(languageCodes["language_code"])
+    print(f"total_duration = {total_duration}")
+    if total_duration > DOCX_MAX_DURATION:
+        default_message = f"Job name: {job_name}. Total transcription duration ({total_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        lambda_message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({total_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
         print(default_message)
         title = "Transcription job stopped"
         deleteUploadFileHelper(job_status, job_info)
@@ -796,12 +810,15 @@ def lambda_handler(event, context):
     print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
     lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
     default_message = f"Transcription job {job_name} completed. Transcript available at s3://{BUCKET}/{key}"
+    creation_time = job_info["CreationTime"].strftime("%Y-%m-%d")
     return {
         'statusCode': 200,
         'body': {
-            'TranscriptionJobName': job_name,
-            'TranscriptionDuration': totalDuration,
-            'LanguageCodes': languageCodes,
+            'job': job_name,
+            'duration': total_duration,
+            'languages': languages,
+            'confidence': global_average_confidence,
+            'created': creation_time,
             'subject': title,
             'lambda': lambda_message,
             'default': default_message,
