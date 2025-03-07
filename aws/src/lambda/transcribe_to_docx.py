@@ -36,6 +36,8 @@ START_NEW_SEGMENT_DELAY = 2.0       # After n seconds pause by one speaker, put 
 
 # Global variables
 global_average_confidence = "0.0"
+global_audio_duration = 0.0
+global_languages = ""
 
 class SpeechSegment:
     """ Class to hold information about a single speech segment """
@@ -301,6 +303,8 @@ def write(data, speech_segments, job_info, output_file):
 
     # Global variable to hold the average confidence score
     global global_average_confidence
+    global global_audio_duration
+    global global_languages
 
     tempFiles = []
 
@@ -347,8 +351,8 @@ def write(data, speech_segments, job_info, output_file):
     job_data = []
     # Audio duration is the end-time of the final voice segment, which might be shorter than the actual file duration
     if len(speech_segments) > 0:
-        audio_duration = speech_segments[-1].segmentEndTime
-        dur_text = str(int(audio_duration / 60)) + "m " + str(round(audio_duration % 60, 2)) + "s"
+        global_audio_duration = speech_segments[-1].segmentEndTime
+        dur_text = str(int(global_audio_duration / 60)) + "m " + str(round(global_audio_duration % 60, 2)) + "s"
         job_data.append({"name": "Audio Duration", "value": dur_text})
     # We can infer diarization mode from the JSON results data structure
     if "speaker_labels" in data["results"]:
@@ -359,15 +363,18 @@ def write(data, speech_segments, job_info, output_file):
     # Some information is only in the job info
     if job_info is not None:
         if "LanguageCode" in job_info: # AWS sample job_info
+            global_languages = job_info["LanguageCode"]
             job_data.append({"name": "Language", "value": job_info["LanguageCode"]})
         elif "LanguageCodes" in job_info: # AWS job_info
             languages = []
-            for language in job_info["LanguageCodes"]: languages.append(language["LanguageCode"] + " ")
-            job_data.append({"name": "Language(s)", "value": languages})
+            for language in job_info["LanguageCodes"]: languages.append(language["LanguageCode"])
+            global_languages = ', '.join(languages)
+            job_data.append({"name": "Language(s)", "value": global_languages})
         elif "language_codes" in job_info: # json job_info
             languages = []
-            for language in job_info["language_codes"]: languages.append(language["language_code"] + " ")
-            job_data.append({"name": "Language(s)", "value": languages})
+            for language in job_info["language_codes"]: languages.append(language["language_code"])
+            global_languages = ', '.join(languages)
+            job_data.append({"name": "Language(s)", "value": global_languages})
         if "MediaFormat" in job_info:
             job_data.append({"name": "File Format", "value": job_info["MediaFormat"]})
         if "MediaSampleRateHertz" in job_info:
@@ -707,27 +714,9 @@ def lambda_handler(event, context):
         }
 
     # Check duration and error if exceeded
-    total_duration = 0
-    if "LanguageCode" in job_info: # AWS sample job_info
-        #languages = job_info["LanguageCode"]
-        languages = [job_info["LanguageCode"]]
-        total_duration = job_info["DurationInSeconds"]
-    elif "LanguageCodes" in job_info: # AWS job_info
-        #languages = job_info["LanguageCodes"]
-        languages = []
-        for languageCodes in job_info["LanguageCodes"]: 
-            total_duration += languageCodes["DurationInSeconds"]
-            languages.append(languageCodes["LanguageCode"])
-    elif "language_codes" in job_info: # json job_info
-        #languages = job_info["language_codes"]
-        languages = []
-        for languageCodes in job_info["language_codes"]: 
-            total_duration += languageCodes["duration_in_seconds"]
-            languages.append(languageCodes["language_code"])
-    print(f"total_duration = {total_duration}")
-    if total_duration > DOCX_MAX_DURATION:
-        default_message = f"Job name: {job_name}. Total transcription duration ({total_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
-        lambda_message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({total_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+    if global_audio_duration > DOCX_MAX_DURATION:
+        default_message = f"Job name: {job_name}. Total transcription duration ({global_audio_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        lambda_message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({global_audio_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
         print(default_message)
         title = "Transcription job stopped"
         deleteUploadFileHelper(job_status, job_info)
@@ -811,12 +800,13 @@ def lambda_handler(event, context):
     lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
     default_message = f"Transcription job {job_name} completed. Transcript available at s3://{BUCKET}/{key}"
     creation_time = job_info["CreationTime"].strftime("%Y-%m-%d")
+    total_duration = str(round(global_audio_duration, 2))
     return {
         'statusCode': 200,
         'body': {
             'job': job_name,
             'duration': total_duration,
-            'languages': languages,
+            'languages': global_languages,
             'confidence': global_average_confidence,
             'created': creation_time,
             'subject': title,
