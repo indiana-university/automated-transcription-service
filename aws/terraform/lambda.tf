@@ -187,7 +187,7 @@ module "teams-notification" {
         {
             "Effect": "Allow",
             "Action": "logs:CreateLogGroup",
-            "Resource": "arn:aws:logs:us-east-1:${var.account}:*"
+            "Resource": "arn:aws:logs:${var.region}:${var.account}:*"
         },
         {
             "Effect": "Allow",
@@ -196,7 +196,7 @@ module "teams-notification" {
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:us-east-1:${var.account}:log-group:${var.prefix}-teams-notification:*"
+                "arn:aws:logs:${var.region}:${var.account}:log-group:${var.prefix}-teams-notification:*"
             ]
         },
         {
