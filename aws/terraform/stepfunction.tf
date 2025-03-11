@@ -65,7 +65,7 @@ module "step_function" {
         "Resource": "arn:aws:states:::sns:publish",
         "Parameters": {
           "Message": "Transcribe job failed. See CloudWatch logs for details.",
-          "TopicArn": "arn:aws:sns:us-east-1:859011005590:ats-notifications"
+          "TopicArn": "${module.sns_topic.topic_arn}"
         },
         "Next": "ERROR"
       },
@@ -74,7 +74,7 @@ module "step_function" {
         "Resource": "arn:aws:states:::lambda:invoke",
         "Parameters": {
           "Payload.$": "$",
-          "FunctionName": "arn:aws:lambda:us-east-1:859011005590:function:ats-transcribe-to-docx"
+          "FunctionName": "${aws_lambda_function.docx.arn}"
         },
         "Retry": [
           {
@@ -95,7 +95,7 @@ module "step_function" {
         "Type": "Task",
         "Resource": "arn:aws:states:::aws-sdk:sns:publish",
         "Parameters": {
-          "TopicArn": "arn:aws:sns:us-east-1:859011005590:ats-notifications",
+          "TopicArn": "${module.sns_topic.topic_arn}",
           "Subject.$": "$.body.subject",
           "MessageStructure": "json",
           "Message": {
@@ -122,7 +122,7 @@ module "step_function" {
         "Type": "Task",
         "Resource": "arn:aws:states:::dynamodb:putItem",
         "Parameters": {
-          "TableName": "ats-jobs-table",
+          "TableName": "${module.dynamodb_table.dynamodb_table_id}",
           "Item": {
             "PK": {
               "S": "jobs"

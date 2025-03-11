@@ -1,7 +1,11 @@
-output "docx_lambda_name" {
-  value = aws_lambda_function.docx.id
+output "upload_bucket_name" {
+  value = aws_s3_bucket.upload.bucket
 }
 
-output "ts_lambda_name" {
-  value = module.transcribe.lambda_function_name
+output "download_bucket_name" {
+  value = aws_s3_bucket.download.bucket
+}
+
+output "dynamodb_table_name" {
+  value = module.dynamodb_table.dynamodb_table_id
 }
