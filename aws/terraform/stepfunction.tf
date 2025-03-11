@@ -74,7 +74,7 @@ module "step_function" {
         "Resource": "arn:aws:states:::lambda:invoke",
         "Parameters": {
           "Payload.$": "$",
-          "FunctionName": "arn:aws:lambda:us-east-1:859011005590:function:ats-transcribe-to-docx:$LATEST"
+          "FunctionName": "arn:aws:lambda:us-east-1:859011005590:function:ats-transcribe-to-docx"
         },
         "Retry": [
           {

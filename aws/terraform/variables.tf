@@ -47,11 +47,6 @@ variable "lambda_ts" {
   type        = string
 }
 
-variable "lambda_step" {
-  description = "name of the lambda function step function"
-  type        = string
-}
-
 variable "docx_timeout" {
   description = "Timeout for docx lambda function"
   type        = number
@@ -77,4 +72,10 @@ variable "docx_max_duration" {
   description = "Max transcription duration in seconds that transcribe_to_docx will process before issuing a failure"
   type        = number
   default     = 13150
+}
+
+variable "teams_notification" {
+  description = "Whether to create the SNS teams_notification Lambda and subscribe it to the SNS topic"
+  type        = bool
+  default     = false
 }

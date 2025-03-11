@@ -163,6 +163,7 @@ module "transcribe" {
 }
 
 module "teams-notification" {
+  count   = var.teams_notification ? 1 : 0
   source  = "terraform-aws-modules/lambda/aws"
   version = ">= 7.14.0"
 
@@ -221,4 +222,20 @@ module "teams-notification" {
   tags = {
     Project = "ATS"
   }
+}
+
+resource "aws_lambda_permission" "teams_notification_permission" {
+  count        = var.teams_notification ? 1 : 0
+  statement_id = "AllowExecutionFromSNS"
+  action       = "lambda:InvokeFunction"
+  function_name = module.teams-notification[0].lambda_function_name
+  principal    = "sns.amazonaws.com"
+  source_arn   = module.sns_topic.topic_arn
+}
+
+resource "aws_sns_topic_subscription" "teams_notification_subscription" {
+  count      = var.teams_notification ? 1 : 0
+  topic_arn  = module.sns_topic.topic_arn
+  protocol   = "lambda"
+  endpoint   = module.teams-notification[0].lambda_function_arn
 }
