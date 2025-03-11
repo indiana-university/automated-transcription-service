@@ -3,5 +3,5 @@ output "docx_lambda_name" {
 }
 
 output "ts_lambda_name" {
-  value = aws_lambda_function.transcribe.id
+  value = module.transcribe.lambda_function_name
 }

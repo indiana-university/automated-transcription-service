@@ -19,7 +19,7 @@ module "dynamodb_table" {
 
   billing_mode = "PAY_PER_REQUEST"
 
-  ttl_enabled = true
+  ttl_enabled        = true
   ttl_attribute_name = "TTL"
 
   point_in_time_recovery_enabled = true
