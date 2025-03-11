@@ -239,3 +239,49 @@ resource "aws_sns_topic_subscription" "teams_notification_subscription" {
   protocol  = "lambda"
   endpoint  = module.teams-notification[0].lambda_function_arn
 }
+
+module "export_jobs" {
+  source  = "terraform-aws-modules/lambda/aws"
+  version = ">= 7.14.0"
+
+  function_name = "${var.prefix}-export-jobs"
+  handler       = "export_jobs.lambda_handler"
+  runtime       = "python3.12"
+  timeout       = 300
+  publish       = true
+  source_path   = "../src/lambda/export"
+
+  environment_variables = {
+    DOWNLOAD_BUCKET = aws_s3_bucket.download.id
+    DYNAMODB_TABLE  = module.dynamodb_table.dynamodb_table_id
+  }
+
+  attach_policy_json = true
+  policy_json        = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "QueryDynamoDB",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:Query"
+        ],
+        "Resource": "${module.dynamodb_table.dynamodb_table_arn}"
+      },
+      {
+        "Sid": "WriteToS3",
+        "Effect": "Allow",
+        "Action": [
+          "s3:PutObject"
+        ],
+        "Resource": "${aws_s3_bucket.download.arn}/*"
+      }
+    ]
+  }
+  EOF
+
+  tags = {
+    Project = "ATS"
+  }
+}
