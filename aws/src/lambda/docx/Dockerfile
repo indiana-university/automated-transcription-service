@@ -8,7 +8,6 @@ ARG FUNCTION_DIR
 
 # Copy function code
 RUN  mkdir -p ${FUNCTION_DIR}
-COPY audio_to_transcribe.py ${FUNCTION_DIR}
 COPY transcribe_to_docx.py ${FUNCTION_DIR}
 
 # Install the function's dependencies

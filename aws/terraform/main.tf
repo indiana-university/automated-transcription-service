@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 4.34.0"
     }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = ">= 3.0"
+    }
   }
   backend "s3" {
     key    = "terraform.tfstate"

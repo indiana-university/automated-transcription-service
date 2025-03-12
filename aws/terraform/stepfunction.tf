@@ -35,7 +35,7 @@ module "step_function" {
         "Resource": "arn:aws:states:::lambda:invoke",
         "Parameters": {
           "Payload.$": "$",
-          "FunctionName": "${aws_lambda_function.docx.arn}"
+          "FunctionName": "${module.docx.lambda_function_arn}"
         },
         "Retry": [
           {
@@ -121,7 +121,7 @@ module "step_function" {
   service_integrations = {
     lambda = {
       lambda = [
-        aws_lambda_function.docx.arn
+        module.docx.lambda_function_arn
       ]
     },
     sns = {
