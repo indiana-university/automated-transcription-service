@@ -446,8 +446,8 @@ module "docx" {
   }
   EOF
 
-tags = {
-  Project = "ATS"
-}
+  tags = {
+    Project = "ATS"
+  }
 
 }
