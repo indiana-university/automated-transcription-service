@@ -49,8 +49,8 @@ terraform destroy
 >This will remove all the resources created by terraform.
 
 >[!NOTE]
->Note that this will not remove the S3 bucket used for remote state, so you will need to do that manually if you want to remove it.
->If you get an error about the bucket(s) not being empty, you will need to empty the bucket(s) first. You can do this from the AWS console or by using the AWS CLI:
+>This will not remove the S3 bucket used for remote state, so you will need to do that manually if you want to remove it.  
+>If you get an error about the bucket(s) not being empty, you will need to empty the bucket(s) first. You can do this from the AWS console or by using the AWS CLI:  
 ```
 aws s3 rm s3://<BUCKET_NAME> --recursive
 ```
