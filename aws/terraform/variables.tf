@@ -73,3 +73,9 @@ variable "python_version" {
   type        = string
   default     = "3.12"
 }
+
+variable "document_title" {
+  description = "Title for the generated document. This will be used in the DOCX file header."
+  type        = string
+  default     = "Transcription Results"
+}

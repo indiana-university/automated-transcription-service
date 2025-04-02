@@ -28,9 +28,6 @@ RED = "FF0000"
 YELLOW = "FFFF00"
 GREEN = "00FF00"
 
-# Image download URLS
-IMAGE_URL_BANNER = "https://assets.iu.edu/brand/3.3.x/trident-large.png"
-
 # Additional Constants
 START_NEW_SEGMENT_DELAY = 2.0       # After n seconds pause by one speaker, put next speech in new segment
 
@@ -221,7 +218,7 @@ def generate_confidence_stats(speech_segments):
             stats["parsedWords"] += 1
     return stats
 
-def write_custom_text_header(document, text_label):
+def write_custom_text_header(document, text_label, level=3):
     """
     Adds a run of text to the document with the given text label, but using our customer text-header style
 
@@ -229,7 +226,7 @@ def write_custom_text_header(document, text_label):
     :param text_label: Header text to write out
     :return:
     """
-    paragraph = document.add_heading(text_label, level=3)
+    paragraph = document.add_heading(text_label, level)
 
 def write_confidence_scores(document, stats, temp_files):
     """
@@ -333,7 +330,8 @@ def write(data, speech_segments, job_info, output_file):
     custom_style.font.italic = True
 
     # Intro header
-    write_custom_text_header(document, "Indiana University Social Science Research Commons")
+    DOCUMENT_TITLE = os.environ.get("DOCUMENT_TITLE", "Transcription Results")
+    write_custom_text_header(document, DOCUMENT_TITLE, 2)
 
     # Write put the call summary table - depending on the mode that Transcribe was used in, and
     # if the request is being run on a JSON results file rather than reading the job info from Transcribe,
