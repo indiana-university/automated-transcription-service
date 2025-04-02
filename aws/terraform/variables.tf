@@ -6,6 +6,7 @@ variable "region" {
 variable "mpl" {
   description = "default directory for matplot lib"
   type        = string
+  default = "/tmp"
 }
 
 variable "webhook" {
@@ -23,16 +24,19 @@ variable "prefix" {
 variable "lambda_docx" {
   description = "name of the lambda ts-to-docx function"
   type        = string
+  default = "transcribe-to-docx"
 }
 
 variable "lambda_ts" {
   description = "name of the lambda function audio-to-ts function"
   type        = string
+  default = "audio-to-transcribe"
 }
 
 variable "docx_timeout" {
   description = "Timeout for docx lambda function"
   type        = number
+  default     = 300000 # 5 minutes in milliseconds
 }
 
 variable "account" {
@@ -43,6 +47,7 @@ variable "account" {
 variable "retention_days" {
   description = "Number of days to keep download bucket files"
   type        = number
+  default     = 30
 }
 
 variable "confidence_score" {
@@ -61,4 +66,10 @@ variable "teams_notification" {
   description = "Whether to create the SNS teams_notification Lambda and subscribe it to the SNS topic"
   type        = bool
   default     = false
+}
+
+variable "python_version" {
+  description = "Python version to use for the Lambda functions. Supported versions: 3.12 or later"
+  type        = string
+  default     = "3.12"
 }
