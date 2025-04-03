@@ -14,7 +14,16 @@ def lambda_handler(event, context):
     if not title:
         title = "ATS notification"
 
-    message = {"summary": title, "sections": [{"activityTitle": title, "activitySubtitle": content}]}
+    try:
+        body = json.loads(content)
+    except Exception as e:
+        print(f"Failed to parse SNS message as JSON: {e}.")
+        return
+
+    job_name = body.get("job", "Unknown Job")
+    s3uri = body.get("s3uri", "No S3 URI provided")
+    teams_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>{s3uri}</pre>"
+    message = {"summary": title, "sections": [{"activityTitle": title, "activitySubtitle": teams_message}]}
     request_data = json.dumps(message).encode("utf-8")
     req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
 

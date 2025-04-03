@@ -809,8 +809,7 @@ def lambda_handler(event, context):
             'confidence': global_average_confidence,
             'created': creation_time,
             'subject': title,
-            'lambda': lambda_message,
-            'default': default_message,
+            's3uri': s3uri,
         }
     }
 
