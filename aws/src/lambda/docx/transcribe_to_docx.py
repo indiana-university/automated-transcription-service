@@ -794,9 +794,10 @@ def lambda_handler(event, context):
     deleteUploadFileHelper(job_status, job_info)
 
     title = "Transcription job completed"
-    print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
-    lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
-    default_message = f"Transcription job {job_name} completed. Transcript available at s3://{BUCKET}/{key}"
+    s3uri = f"s3://{BUCKET}/{key}"
+    print(f"{title}: Job Name: {job_name} Transcript available at: {s3uri}")
+    lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>{s3uri}</pre>"
+    default_message = f"Transcription job {job_name} completed. Transcript available at {s3uri}"
     creation_time = job_info["CreationTime"].strftime("%Y-%m-%d")
     total_duration = str(round(global_audio_duration, 2))
     return {
