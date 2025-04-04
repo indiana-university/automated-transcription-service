@@ -1,20 +1,3 @@
-variable "config" {
-  description = "path to config file"
-  type        = list(string)
-
-}
-
-variable "credentials" {
-  description = "path to credentials file"
-  type        = list(string)
-
-}
-
-variable "profile" {
-  description = "AWS profile to use"
-  type        = string
-}
-
 variable "region" {
   description = "AWS Region to use"
   type        = string
@@ -23,6 +6,7 @@ variable "region" {
 variable "mpl" {
   description = "default directory for matplot lib"
   type        = string
+  default = "/tmp"
 }
 
 variable "webhook" {
@@ -40,21 +24,19 @@ variable "prefix" {
 variable "lambda_docx" {
   description = "name of the lambda ts-to-docx function"
   type        = string
+  default = "transcribe-to-docx"
 }
 
 variable "lambda_ts" {
   description = "name of the lambda function audio-to-ts function"
   type        = string
-}
-
-variable "lambda_step" {
-  description = "name of the lambda function step function"
-  type        = string
+  default = "audio-to-transcribe"
 }
 
 variable "docx_timeout" {
   description = "Timeout for docx lambda function"
   type        = number
+  default     = 300000 # 5 minutes in milliseconds
 }
 
 variable "account" {
@@ -65,6 +47,7 @@ variable "account" {
 variable "retention_days" {
   description = "Number of days to keep download bucket files"
   type        = number
+  default     = 30
 }
 
 variable "confidence_score" {
@@ -77,4 +60,22 @@ variable "docx_max_duration" {
   description = "Max transcription duration in seconds that transcribe_to_docx will process before issuing a failure"
   type        = number
   default     = 13150
+}
+
+variable "teams_notification" {
+  description = "Whether to create the SNS teams_notification Lambda and subscribe it to the SNS topic"
+  type        = bool
+  default     = false
+}
+
+variable "python_version" {
+  description = "Python version to use for the Lambda functions. Supported versions: 3.12 or later"
+  type        = string
+  default     = "3.12"
+}
+
+variable "document_title" {
+  description = "Title for the generated document. This will be used in the DOCX file header."
+  type        = string
+  default     = "Transcription Results"
 }

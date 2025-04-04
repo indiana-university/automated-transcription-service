@@ -19,7 +19,6 @@ from docx.oxml import parse_xml
 import argparse
 from pathlib import Path
 from time import perf_counter
-import ats_utilities
 
 # Common formats and styles
 CUSTOM_STYLE_HEADER = "CustomHeader"
@@ -29,11 +28,13 @@ RED = "FF0000"
 YELLOW = "FFFF00"
 GREEN = "00FF00"
 
-# Image download URLS
-IMAGE_URL_BANNER = "https://assets.iu.edu/brand/3.3.x/trident-large.png"
-
 # Additional Constants
 START_NEW_SEGMENT_DELAY = 2.0       # After n seconds pause by one speaker, put next speech in new segment
+
+# Global variables
+global_average_confidence = "0.0"
+global_audio_duration = 0.0
+global_languages = ""
 
 class SpeechSegment:
     """ Class to hold information about a single speech segment """
@@ -217,7 +218,7 @@ def generate_confidence_stats(speech_segments):
             stats["parsedWords"] += 1
     return stats
 
-def write_custom_text_header(document, text_label):
+def write_custom_text_header(document, text_label, level=3):
     """
     Adds a run of text to the document with the given text label, but using our customer text-header style
 
@@ -225,7 +226,7 @@ def write_custom_text_header(document, text_label):
     :param text_label: Header text to write out
     :return:
     """
-    paragraph = document.add_heading(text_label, level=3)
+    paragraph = document.add_heading(text_label, level)
 
 def write_confidence_scores(document, stats, temp_files):
     """
@@ -297,6 +298,11 @@ def write(data, speech_segments, job_info, output_file):
     :param summaries_detected: Flag to indicate presence of call summary data
     """
 
+    # Global variable to hold the average confidence score
+    global global_average_confidence
+    global global_audio_duration
+    global global_languages
+
     tempFiles = []
 
     # Initiate Document, orientation and margins
@@ -324,7 +330,8 @@ def write(data, speech_segments, job_info, output_file):
     custom_style.font.italic = True
 
     # Intro header
-    write_custom_text_header(document, "Indiana University Social Science Research Commons")
+    DOCUMENT_TITLE = os.environ.get("DOCUMENT_TITLE", "Transcription Results")
+    write_custom_text_header(document, DOCUMENT_TITLE, 2)
 
     # Write put the call summary table - depending on the mode that Transcribe was used in, and
     # if the request is being run on a JSON results file rather than reading the job info from Transcribe,
@@ -342,8 +349,8 @@ def write(data, speech_segments, job_info, output_file):
     job_data = []
     # Audio duration is the end-time of the final voice segment, which might be shorter than the actual file duration
     if len(speech_segments) > 0:
-        audio_duration = speech_segments[-1].segmentEndTime
-        dur_text = str(int(audio_duration / 60)) + "m " + str(round(audio_duration % 60, 2)) + "s"
+        global_audio_duration = speech_segments[-1].segmentEndTime
+        dur_text = str(int(global_audio_duration / 60)) + "m " + str(round(global_audio_duration % 60, 2)) + "s"
         job_data.append({"name": "Audio Duration", "value": dur_text})
     # We can infer diarization mode from the JSON results data structure
     if "speaker_labels" in data["results"]:
@@ -351,20 +358,23 @@ def write(data, speech_segments, job_info, output_file):
     elif "channel_labels" in data["results"]:
         job_data.append({"name": "Audio Identification", "value": "Channel-separated"})
     elif "audio_segments" in data["results"]:
-        job_data.append({"name": "Audio Identification", "value": "Audio-segments"})
+         job_data.append({"name": "Audio Identification", "value": "Audio-segments"})
 
     # Some information is only in the job info
     if job_info is not None:
         if "LanguageCode" in job_info: # AWS sample job_info
+            global_languages = job_info["LanguageCode"]
             job_data.append({"name": "Language", "value": job_info["LanguageCode"]})
         elif "LanguageCodes" in job_info: # AWS job_info
             languages = []
-            for language in job_info["LanguageCodes"]: languages.append(language["LanguageCode"] + " ")
-            job_data.append({"name": "Language(s)", "value": languages})
+            for language in job_info["LanguageCodes"]: languages.append(language["LanguageCode"])
+            global_languages = ', '.join(languages)
+            job_data.append({"name": "Language(s)", "value": global_languages})
         elif "language_codes" in job_info: # json job_info
             languages = []
-            for language in job_info["language_codes"]: languages.append(language["language_code"] + " ")
-            job_data.append({"name": "Language(s)", "value": languages})
+            for language in job_info["language_codes"]: languages.append(language["language_code"])
+            global_languages = ', '.join(languages)
+            job_data.append({"name": "Language(s)", "value": global_languages})
         if "MediaFormat" in job_info:
             job_data.append({"name": "File Format", "value": job_info["MediaFormat"]})
         if "MediaSampleRateHertz" in job_info:
@@ -386,7 +396,8 @@ def write(data, speech_segments, job_info, output_file):
     # Finish with the confidence scores (if we have any)
     stats = generate_confidence_stats(speech_segments)
     if len(stats["accuracy"]) > 0:
-        job_data.append({"name": "Average Confidence", "value": str(round(statistics.mean(stats["accuracy"]), 2)) + "%"})
+        global_average_confidence = str(round(statistics.mean(stats["accuracy"]), 2))
+        job_data.append({"name": "Average Confidence", "value": global_average_confidence + "%"})
 
     # Place all of our job-summary fields into the Table, one row at a time
     for next_row in job_data:
@@ -679,7 +690,7 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
             nextSpeechSegment.segmentText = segment["transcript"]
             nextSpeechSegment.segmentSpeaker = ""  # Default speaker label for audio segments
             confidenceList = []
-
+ 
             for item_id in segment["items"]:
                 item = data["results"]["items"][item_id]
                 if item["type"] == "pronunciation":
@@ -699,10 +710,10 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
                     wordToAdd = word_result["content"]
                     if confidenceList:
                         confidenceList[-1]["text"] += wordToAdd  # Last word
-
+ 
             nextSpeechSegment.segmentConfidence = confidenceList
-
-            # Check if new segment based on the delay. There are no speaker or channels like the previous two modes so we can't check that
+ 
+             # Check if new segment based on the delay. There are no speaker or channels like the previous two modes so we can't check that
             if speechSegmentList and (nextSpeechSegment.segmentStartTime - speechSegmentList[-1].segmentEndTime) >= START_NEW_SEGMENT_DELAY:
                 speechSegmentList.append(nextSpeechSegment)
             else:
@@ -713,135 +724,143 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
                         speechSegmentList[-1].segmentConfidence.append(wordConfidence)
                 else:
                     speechSegmentList.append(nextSpeechSegment)
-
+ 
     # Return our full turn-by-turn speaker segment list
     return speechSegmentList
 
 def lambda_handler(event, context):
     """
-    Entrypoint for the Lambda function. Pulls batch of messages from SQS standard queue.
+    Entrypoint for the Lambda function.
     """
-    print(f"audio_to_transcribe.lambda_handler started")
+    print("transcribe_to_docx.lambda_handler started")
 
     # Get environment variables
-    TIMEOUT = int(os.environ['TIMEOUT'])        # Timeout for docx generation in milliseconds
-    WEBHOOK = os.environ['WEBHOOK_URL']         # Teams webhook URL
     BUCKET = os.environ["BUCKET"]               # S3 output bucket name
     DOCX_MAX_DURATION = float(os.environ['DOCX_MAX_DURATION'])   # Max transcription duration to process
 
-    # Process messages in batch
-    batch_failures = []
-    for record in event["Records"]:
+    # Attempt to retrieve job details
+    job_status = event["detail"]["TranscriptionJobStatus"]
+    job_name = event["detail"]["TranscriptionJobName"]
+    try:
+        job_info = ts_client.get_transcription_job(TranscriptionJobName=job_name)["TranscriptionJob"]
+        print(f"Job info: {job_info}")
+    except Exception as e:
+        # Can't retrieve job details, so we can't do anything
+        print(e)
+        title = "Transcription job failed"
+        default_message = f"Failed to retrieve job details for {job_name}"
+        return {
+            'statusCode': 500,
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
+        }
 
-        message_id = record["messageId"]
-        # Make sure there is enough time to process this message
-        if context.get_remaining_time_in_millis() < TIMEOUT:
-            print(f"Not enough time to process this message: {message_id}")
-            batch_failures.append({"itemIdentifier": message_id})
-            continue
+    # Check duration and error if exceeded
+    if global_audio_duration > DOCX_MAX_DURATION:
+        default_message = f"Job name: {job_name}. Total transcription duration ({global_audio_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        lambda_message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({global_audio_duration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
+        print(default_message)
+        title = "Transcription job stopped"
+        deleteUploadFileHelper(job_status, job_info)
+        return {
+            'statusCode': 500,
+            'body': {
+                'subject': title,
+                'lambda': lambda_message,
+                'default': default_message,
+            }
+        }
 
-        # The EventBridge message is stored in "body" field
-        event_message = json.loads(record["body"])
-        print(f"Event message: {event_message}")
+    # Try and download the transcript JSON
+    if "RedactedTranscriptFileUri" in job_info["Transcript"]:
+        download_url = job_info["Transcript"]["RedactedTranscriptFileUri"]
+    else:
+        download_url = job_info["Transcript"]["TranscriptFileUri"]
+    try:
+        transcript = get_json(download_url)
+    except Exception as e:
+        print(e)
+        title = "Transcription job failed"
+        default_message = f"Failed to download transcript for {job_name}"
+        print(default_message)
+        return {
+            'statusCode': 500,
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
+        }
 
-        # If the job failed, there is nothing for us to do here
-        # Note: message will be deleted from queue
-        job_status = event_message["detail"]["TranscriptionJobStatus"]
-        job_name = event_message["detail"]["TranscriptionJobName"]
-        if job_status == "FAILED":
-            title = "Transcription job failed"
-            message = f"Job name:<br><pre>{job_name}</pre><br>Please review CloudWatch logs for more details."
-            color = RED
-            ats_utilities.notify_teams(WEBHOOK, title, message, color)
-            continue
+    # Check the job settings for speaker/channel ID
+    if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
+        speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
+    elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
+        speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
+    else:
+        # We do not support non-speaker mode in this version
+        title = "Transcription job failed"
+        default_message = f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version."
+        print(default_message)
+        return {
+            'statusCode': 500,
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
+        }
 
-        # Attempt to retrieve job details
-        try:
-            job_info = ts_client.get_transcription_job(TranscriptionJobName=job_name)["TranscriptionJob"]
-            print(f"Job info: {job_info}")
-        except Exception as e:
-            # Can't retrieve job details, so we can't do anything
-            # Note: message will be deleted from queue
-            print(e)
-            print(f"Failed to retrieve job details for {job_name}")
-            continue
+    # Write out the file
+    os.chdir("/tmp")
+    output_file = job_info["TranscriptionJobName"] + ".docx"
+    write(transcript, speech_segments, job_info, output_file)
 
-        # Check duration and error if exceeded
-        totalDuration = 0
-        if "LanguageCode" in job_info: # AWS sample job_info
-            totalDuration = job_info["DurationInSeconds"]
-        elif "LanguageCodes" in job_info: # AWS job_info
-            for languageCodes in job_info["LanguageCodes"]: totalDuration += languageCodes["DurationInSeconds"]
-        elif "language_codes" in job_info: # json job_info
-            for languageCodes in job_info["language_codes"]: totalDuration += languageCodes["duration_in_seconds"]
-        print(f"totalDuration = {totalDuration}")
-        if totalDuration > DOCX_MAX_DURATION:
-            message = f"Job name:<br><pre>{job_name}</pre><br>Total transcription duration ({totalDuration:.1f}s) exceeded DOCX_MAX_DURATION ({DOCX_MAX_DURATION}s), download and finish command line using the available JSON."
-            print(f"{message}")
-            ats_utilities.notify_teams(WEBHOOK, "Transcription job stopped", message, RED)
-            deleteUploadFileHelper(job_status, job_info, WEBHOOK)
-            continue
+    # Upload file to S3
+    # Use bucket provided in the environment variable, plus today's date
+    key = today + "/" + output_file
+    try:
+        s3.upload_file(output_file, BUCKET, key)
+    except Exception as e:
+        print(e)
+        title = "Transcription job failed"
+        default_message = f"Failed to upload file {output_file} to S3 bucket {BUCKET}"
+        print(default_message)
+        return {
+            'statusCode': 500,
+            'body': {
+                'subject': title,
+                'lambda': default_message,
+                'default': default_message,
+            }
+        }
 
-        # Try and download the transcript JSON
-        if "RedactedTranscriptFileUri" in job_info["Transcript"]:
-            download_url = job_info["Transcript"]["RedactedTranscriptFileUri"]
-        else:
-            download_url = job_info["Transcript"]["TranscriptFileUri"]
-        try:
-            transcript = get_json(download_url)
-        except Exception as e:
-            # Message will stay in queue for retry
-            print(e)
-            print(f"Failed to download transcript for {job_name}")
-            batch_failures.append({"itemIdentifier": message_id})
-            continue
+    deleteUploadFileHelper(job_status, job_info)
 
-        # Check the job settings for speaker/channel ID
-        if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
-            speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
-        elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
-            speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
-        else:
-            # TODO: Handle non-speaker mode
-            # We do not support non-speaker mode in this version
-            # Note: message will be deleted from the queue
-            print(f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version.")
-            continue
+    title = "Transcription job completed"
+    s3uri = f"s3://{BUCKET}/{key}"
+    print(f"{title}: Job Name: {job_name} Transcript available at: {s3uri}")
+    lambda_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>{s3uri}</pre>"
+    default_message = f"Transcription job {job_name} completed. Transcript available at {s3uri}"
+    creation_time = job_info["CreationTime"].strftime("%Y-%m-%d")
+    total_duration = str(round(global_audio_duration, 2))
+    return {
+        'statusCode': 200,
+        'body': {
+            'job': job_name,
+            'duration': total_duration,
+            'languages': global_languages,
+            'confidence': global_average_confidence,
+            'created': creation_time,
+            'subject': title,
+            's3uri': s3uri,
+        }
+    }
 
-        # Write out the file
-        os.chdir("/tmp")
-        output_file = job_info["TranscriptionJobName"] + ".docx"
-        write(transcript, speech_segments, job_info, output_file)
-
-        # Upload file to S3
-        # Use bucket provided in the environment variable, plus today's date
-        key = today + "/" + output_file
-        try:
-            s3.upload_file(output_file, BUCKET, key)
-        except Exception as e:
-            print(e)
-            print(f"Failed to upload file {output_file} to S3 bucket {BUCKET}")
-            batch_failures.append({"itemIdentifier": message_id})
-            continue
-
-        deleteUploadFileHelper(job_status, job_info, WEBHOOK)
-
-        title = "Transcription job completed"
-        print(f"{title}: Job Name: {job_name} Transcript available at: s3://{BUCKET}/{key}")
-        # Send message to Teams channel
-        message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>s3://{BUCKET}/{key}</pre>"
-        color = GREEN
-        ats_utilities.notify_teams(WEBHOOK, title, message, color)
-
-    # Send failed messages back to queue for retry
-    sqs_response = {}
-    if len(batch_failures) > 0:
-        sqs_response["batchItemFailures"] = batch_failures
-    print(f"Function ending. Response={sqs_response}")
-
-    return sqs_response
-
-def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
+def deleteUploadFileHelper(job_status, job_info):
     """
     Helper to delete the upload file
 
@@ -857,7 +876,6 @@ def deleteUploadFileHelper(job_status, job_info, WEBHOOK):
             s3.delete_object(Bucket=upload_bucket, Key=upload_key)
         except Exception as e:
             print(e)
-            ats_utilities.notify_teams(WEBHOOK, 'Failed to delete upload file', f"Failed to delete upload file from bucket {upload_bucket} key {upload_key}", RED)
 
 def load_transcribe_job_status(cli_args):
     """

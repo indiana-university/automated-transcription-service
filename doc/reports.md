@@ -1,6 +1,8 @@
-# Generating Reports from CloudWatch
+# Generating Reports
 
-Reports can be generated from the CloudWatch logs. Begin by opening the CloudWatch console at https://console.aws.amazon.com/cloudwatch/.
+Job details are saved to DynamoDB and there is a lambda that can be run to generate a CSV export in the downloads bucket. The lambda function is called `ats-export-jobs`. Create an EventBridge rule to run this on a schedule.
+
+Reports can also be generated from the CloudWatch logs. Begin by opening the CloudWatch console at https://console.aws.amazon.com/cloudwatch/.
 
 Next, click on Logs Insights and select the /aws/lambda/transcribe-to-docx log group from the drop-down list.
 

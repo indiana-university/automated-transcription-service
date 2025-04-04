@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 4.34.0"
     }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = ">= 3.0"
+    }
   }
   backend "s3" {
     key    = "terraform.tfstate"
@@ -11,8 +15,12 @@ terraform {
   }
 }
 provider "aws" {
-  shared_config_files      = var.config
-  shared_credentials_files = var.credentials
-  profile                  = var.profile
-  region                   = var.region
+  region = var.region
+}
+
+locals {
+  tags = {
+    Environment = "dev"
+    Terraform   = "true"
+  }
 }
