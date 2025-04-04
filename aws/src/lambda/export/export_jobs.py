@@ -22,10 +22,21 @@ def lambda_handler(event, context):
     output = io.StringIO()
     writer = csv.writer(output)
     if records:
-        header = list(records[0].keys())
+        orig_keys = list(records[0].keys())
+        header = []
+        use_keys = []
+        for k in orig_keys:
+            if k == "PK":
+                continue
+            elif k == "SK":
+                header.append("Job")
+                use_keys.append(k)
+            else:
+                header.append(k)
+                use_keys.append(k)
         writer.writerow(header)
         for item in records:
-            writer.writerow([item.get(key, "") for key in header])
+            writer.writerow([item.get(k, "") for k in use_keys])
     else:
         writer.writerow(["No records found"])
 
