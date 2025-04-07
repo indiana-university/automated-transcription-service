@@ -85,6 +85,7 @@ module "teams-notification" {
   function_name = "${var.prefix}-teams-notification"
   handler       = "sns_to_teams.lambda_handler"
   runtime       = "python${var.python_version}"
+  timeout       = 15 # Set a short timeout for notifications
   publish       = true
 
   source_path = "../src/lambda/notifications"
