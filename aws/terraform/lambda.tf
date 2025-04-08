@@ -245,6 +245,7 @@ module "docx" {
   function_name  = "${var.prefix}-${var.lambda_docx}"
   description    = "Postprocessing for transcribe jobs"
   timeout        = 900
+  memory_size    = 2048
   publish        = true
   create_package = false
 
