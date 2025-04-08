@@ -1,6 +1,3 @@
-config             = [""] #path to AWS config file, e.g. ~/.aws/config
-credentials        = [""] #path to AWS credentials file, e.g. ~/.aws/credentials
-profile            = "default" #name of AWS credentials profile
 region             = "us-east-1" #AWS region
 account            = "111122223333" #AWS account
 mpl                = "/tmp" #Temp path for Matplotlib
@@ -13,3 +10,5 @@ retention_days     = 30 #Number of days to keep upload and download bucket files
 confidence_score   = 90 #Lower threshold in percent for which not to highlight confidence score. Needs to be between 50-100
 docx_max_duration  = 13150 #Max transcription duration in seconds that transcribe_to_docx will process before issuing a failure
 teams_notification = false #Whether to send a notification to Teams when a transcription is completed
+python_version     = "3.12" #Python version for Lambda functions
+document_title     = "Transcription Results" #Title of the document
