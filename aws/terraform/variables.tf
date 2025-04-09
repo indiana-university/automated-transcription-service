@@ -6,11 +6,17 @@ variable "region" {
 variable "mpl" {
   description = "default directory for matplot lib"
   type        = string
-  default = "/tmp"
+  default     = "/tmp"
 }
 
-variable "webhook" {
-  description = "teams webhook"
+variable "teams_webhook" {
+  description = "Teams webhook"
+  type        = string
+  default     = "DISABLED"
+}
+
+variable "slack_webhook" {
+  description = "Slack webhook"
   type        = string
   default     = "DISABLED"
 }
@@ -24,13 +30,13 @@ variable "prefix" {
 variable "lambda_docx" {
   description = "name of the lambda ts-to-docx function"
   type        = string
-  default = "transcribe-to-docx"
+  default     = "transcribe-to-docx"
 }
 
 variable "lambda_ts" {
   description = "name of the lambda function audio-to-ts function"
   type        = string
-  default = "audio-to-transcribe"
+  default     = "audio-to-transcribe"
 }
 
 variable "docx_timeout" {
@@ -64,6 +70,12 @@ variable "docx_max_duration" {
 
 variable "teams_notification" {
   description = "Whether to create the SNS teams_notification Lambda and subscribe it to the SNS topic"
+  type        = bool
+  default     = false
+}
+
+variable "slack_notification" {
+  description = "Whether to create the SNS slack_notification Lambda and subscribe it to the SNS topic"
   type        = bool
   default     = false
 }
