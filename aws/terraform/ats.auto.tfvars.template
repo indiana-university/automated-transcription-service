@@ -1,7 +1,8 @@
 region             = "us-east-1" #AWS region
 account            = "111122223333" #AWS account
 mpl                = "/tmp" #Temp path for Matplotlib
-webhook            = "" #URL for Teams webhook
+teams_webhook      = "" #URL for Teams webhook
+slack_webhook      = "" #URL for Slack webhook
 prefix             = "ats" #Prefix used for naming resources
 lambda_docx        = "transcribe-to-docx" #Name of transcribe-to-docx Lambda function
 lambda_ts          = "audio-to-transcribe" #Name of audio-to-transcribe Lambda function
@@ -10,5 +11,6 @@ retention_days     = 30 #Number of days to keep upload and download bucket files
 confidence_score   = 90 #Lower threshold in percent for which not to highlight confidence score. Needs to be between 50-100
 docx_max_duration  = 13150 #Max transcription duration in seconds that transcribe_to_docx will process before issuing a failure
 teams_notification = false #Whether to send a notification to Teams when a transcription is completed
+slack_notification = false #Whether to send a notification to Slack when a transcription is completed
 python_version     = "3.12" #Python version for Lambda functions
 document_title     = "Transcription Results" #Title of the document

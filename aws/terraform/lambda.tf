@@ -30,9 +30,8 @@ module "transcribe" {
   publish       = true
   source_path   = "../src/lambda/transcribe"
   environment_variables = {
-    LOG_LEVEL   = "INFO"
-    WEBHOOK_URL = var.webhook
-    BUCKET      = aws_s3_bucket.download.id
+    LOG_LEVEL = "INFO"
+    BUCKET    = aws_s3_bucket.download.id
   }
 
   attach_policy_json = true
@@ -88,11 +87,11 @@ module "teams-notification" {
   timeout       = 15 # Set a short timeout for notifications
   publish       = true
 
-  source_path = "../src/lambda/notifications"
+  source_path = "../src/lambda/notifications/teams"
 
   environment_variables = {
     LOG_LEVEL   = "INFO"
-    WEBHOOK_URL = var.webhook
+    WEBHOOK_URL = var.teams_webhook
   }
 
   attach_policy_json = true
@@ -258,7 +257,6 @@ module "docx" {
   image_uri = module.docker_build.image_uri
   environment_variables = {
     MPLCONFIGDIR      = var.mpl
-    WEBHOOK_URL       = var.webhook
     BUCKET            = aws_s3_bucket.download.id
     TIMEOUT           = var.docx_timeout
     CONFIDENCE        = var.confidence_score
@@ -305,4 +303,83 @@ module "docx" {
     Project = "ATS"
   }
 
+}
+
+module "slack-notification" {
+  count   = var.slack_notification ? 1 : 0
+  source  = "terraform-aws-modules/lambda/aws"
+  version = ">= 7.14.0"
+
+  function_name = "${var.prefix}-slack-notification"
+  handler       = "sns_to_slack.lambda_handler"
+  runtime       = "python${var.python_version}"
+  timeout       = 15 # Set a short timeout for notifications
+  publish       = true
+
+  source_path = "../src/lambda/notifications/slack"
+
+  environment_variables = {
+    LOG_LEVEL   = "INFO"
+    WEBHOOK_URL = var.slack_webhook
+  }
+
+  attach_policy_json = true
+  policy_json        = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "logs:CreateLogGroup",
+            "Resource": "arn:aws:logs:${var.region}:${var.account}:*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:${var.region}:${var.account}:log-group:${var.prefix}-slack-notification:*"
+            ]
+        },
+        {
+            "Sid": "SNSReadOnlyAccess",
+            "Effect": "Allow",
+            "Action": [
+                "sns:GetTopicAttributes",
+                "sns:List*",
+                "sns:CheckIfPhoneNumberIsOptedOut",
+                "sns:GetEndpointAttributes",
+                "sns:GetDataProtectionPolicy",
+                "sns:GetPlatformApplicationAttributes",
+                "sns:GetSMSAttributes",
+                "sns:GetSMSSandboxAccountStatus",
+                "sns:GetSubscriptionAttributes"
+            ],
+            "Resource": "${module.sns_topic.topic_arn}"
+        }
+    ]
+  }
+  EOF
+
+  tags = {
+    Project = "ATS"
+  }
+}
+
+resource "aws_lambda_permission" "slack_notification_permission" {
+  count         = var.slack_notification ? 1 : 0
+  statement_id  = "AllowExecutionFromSNS"
+  action        = "lambda:InvokeFunction"
+  function_name = module.slack-notification[0].lambda_function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = module.sns_topic.topic_arn
+}
+
+resource "aws_sns_topic_subscription" "slack_notification_subscription" {
+  count     = var.slack_notification ? 1 : 0
+  topic_arn = module.sns_topic.topic_arn
+  protocol  = "lambda"
+  endpoint  = module.slack-notification[0].lambda_function_arn
 }
