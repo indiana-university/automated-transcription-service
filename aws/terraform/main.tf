@@ -9,16 +9,15 @@ terraform {
       version = ">= 3.0"
     }
   }
-  backend "s3" {
-    key    = "terraform.tfstate"
-    region = "us-east-1"
-  }
 }
 provider "aws" {
   region = var.region
 }
 
+data "aws_caller_identity" "current" {}
+
 locals {
+  account = coalesce(var.account, data.aws_caller_identity.current.account_id)
   tags = {
     Environment = "dev"
     Terraform   = "true"

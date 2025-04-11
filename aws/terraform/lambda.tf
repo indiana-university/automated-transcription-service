@@ -102,7 +102,7 @@ module "teams-notification" {
         {
             "Effect": "Allow",
             "Action": "logs:CreateLogGroup",
-            "Resource": "arn:aws:logs:${var.region}:${var.account}:*"
+            "Resource": "arn:aws:logs:${var.region}:${local.account}:*"
         },
         {
             "Effect": "Allow",
@@ -111,7 +111,7 @@ module "teams-notification" {
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:${var.region}:${var.account}:log-group:${var.prefix}-teams-notification:*"
+                "arn:aws:logs:${var.region}:${local.account}:log-group:${var.prefix}-teams-notification:*"
             ]
         },
         {
@@ -282,7 +282,7 @@ module "docx" {
           "transcribe:GetTranscriptionJob"
         ],
         "Resource" : [
-          "arn:aws:transcribe:*:${var.account}:transcription-job/*",
+          "arn:aws:transcribe:*:${local.account}:transcription-job/*",
           "${aws_s3_bucket.download.arn}/*",
           "${aws_s3_bucket.download.arn}",
           "${aws_s3_bucket.upload.arn}/*",
@@ -331,7 +331,7 @@ module "slack-notification" {
         {
             "Effect": "Allow",
             "Action": "logs:CreateLogGroup",
-            "Resource": "arn:aws:logs:${var.region}:${var.account}:*"
+            "Resource": "arn:aws:logs:${var.region}:${local.account}:*"
         },
         {
             "Effect": "Allow",
@@ -340,7 +340,7 @@ module "slack-notification" {
                 "logs:PutLogEvents"
             ],
             "Resource": [
-                "arn:aws:logs:${var.region}:${var.account}:log-group:${var.prefix}-slack-notification:*"
+                "arn:aws:logs:${var.region}:${local.account}:log-group:${var.prefix}-slack-notification:*"
             ]
         },
         {

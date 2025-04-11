@@ -1,6 +1,7 @@
 variable "region" {
   description = "AWS Region to use"
   type        = string
+  default     = "us-east-1"
 }
 
 variable "mpl" {
@@ -48,6 +49,7 @@ variable "docx_timeout" {
 variable "account" {
   description = "account number"
   type        = string
+  default     = ""
 }
 
 variable "retention_days" {

@@ -1,0 +1,16 @@
+region             = "us-east-1"                                                                                                                                                                                                                                                   #AWS region
+account            = "859011005590"                                                                                                                                                                                                                                                #AWS account number
+mpl                = "/tmp"                                                                                                                                                                                                                                                        #Temp path for Matplotlib
+teams_webhook      = "https://indiana.webhook.office.com/webhookb2/e50d40a7-13a9-45a7-a8ee-adf7fa6e2b17@1113be34-aed1-4d00-ab4b-cdd02510be91/IncomingWebhook/6edb259b1c584cd7b10e82057e81df1a/e2f5372d-a62c-4baa-8b5a-f1099063ea70/V2skNPouYSrcYNCgfUufJVL0RiD4qA7iDvIs1jufWJJ581" #URL for Teams webhook
+slack_webhook      = "https://hooks.slack.com/services/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"
+prefix             = "ats"                 #Prefix used for naming resources
+lambda_docx        = "transcribe-to-docx"  #Name of transcribe-to-docx Lambda function
+lambda_ts          = "audio-to-transcribe" #Name of audio-to-transcribe Lambda function
+docx_timeout       = 300000                #Number of milliseconds for timeout threshold in transcribe-to-docx Lambda function
+retention_days     = 30                    #Number of days to keep upload and download bucket files
+confidence_score   = 90                    #Lower threshold in percent for which not to highlight confidence score. Needs to be between 50-100
+docx_max_duration  = 13150
+teams_notification = true
+slack_notification = true
+python_version     = "3.12"
+document_title     = "Indiana University Social Science Research Commons"
