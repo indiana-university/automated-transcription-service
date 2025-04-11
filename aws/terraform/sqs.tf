@@ -32,7 +32,7 @@ resource "aws_sqs_queue_policy" "audio_to_transcribe" {
               "aws:SourceArn" = aws_s3_bucket.upload.arn
             }
             StringEquals = {
-              "aws:SourceAccount" = var.account
+              "aws:SourceAccount" = local.account
             }
           }
           Effect = "Allow"
@@ -73,7 +73,7 @@ resource "aws_sqs_queue_policy" "audio_to_transcribe_dlq" {
           Action = "SQS:*"
           Effect = "Allow"
           Principal = {
-            AWS = "arn:aws:iam::${var.account}:root"
+            AWS = "arn:aws:iam::${local.account}:root"
           }
           Resource = aws_sqs_queue.audio_to_transcribe_dlq.arn
           Sid      = "__owner_statement"
