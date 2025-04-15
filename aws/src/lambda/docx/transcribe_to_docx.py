@@ -528,9 +528,10 @@ def merge_speaker_segments(input_segment_list):
 
 def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False, isAudioSegmentsMode=False):
     """
-    This creates a list of per-turn speech segments based upon the transcript data.  It has to work in two modes:
+    This creates a list of per-turn speech segments based upon the transcript data.  It has to work in three modes:
         a) Speaker-separated audio
         b) Channel-separated audio
+        c) Audio Segments
 
     :param data: JSON result data from Transcribe
     :param isSpeakerMode: (optional) Boolean indicating whether the audio was speaker-separated
@@ -795,15 +796,17 @@ def lambda_handler(event, context):
             }
         }
 
-    # Check the job settings for speaker/channel ID
+    # Check the job settings for speaker/channel/audio ID
     if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
         speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
     elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
         speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
+    elif "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == False:
+        speech_segments = create_turn_by_turn_segments(transcript, isAudioSegmentsMode = True)
     else:
         # We do not support non-speaker mode in this version
         title = "Transcription job failed"
-        default_message = f"Transcribe job name: {job_name}. Channel/speaker mode must be used in this version."
+        default_message = f"Transcribe job name: {job_name}. Channel/speaker/audio mode must be used in this version."
         print(default_message)
         return {
             'statusCode': 500,
