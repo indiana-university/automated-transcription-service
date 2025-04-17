@@ -725,6 +725,9 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
                 else:
                     speechSegmentList.append(nextSpeechSegment)
  
+    # Ensure segments are sorted by start_time before returning
+    speechSegmentList = sorted(speechSegmentList, key=lambda segment: segment.segmentStartTime)
+
     # Return our full turn-by-turn speaker segment list
     return speechSegmentList
 
