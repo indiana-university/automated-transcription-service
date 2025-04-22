@@ -8,4 +8,4 @@ Thus, we seek to provide a new service to researchers that will make audio trans
 
 This project has folders:
 * aws: To build a pipeline with terraform to accept audio files in an S3 input bucket and convert those to docx with the help of a Python script. Output files are placed in another S3 output bucket
-* google: Python script to convert json to docx only
+* google: Python script to convert json to text or docx only
