@@ -12,7 +12,13 @@ CloudShell already includes Docker and the CLI, so you only need to install Terr
 
 ```bash
 sudo yum install -y yum-utils shadow-utils
+```
+
+```bash
 sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+```
+
+```bash
 sudo yum -y install terraform
 ```
 

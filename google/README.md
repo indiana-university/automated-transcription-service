@@ -1,8 +1,10 @@
 # Google Cloud
  Automated Transcription Service using the speech-to-text API in Google Cloud.
 
-The sttparser.py script takes a JSON response file as an argument and prints out a formatted transcript. An optional "speakers" argument allows you to specify whether or not to use speaker diarization.
+The sttparser.py script takes a JSON response file as an argument and prints out a formatted text transcript. An optional "speakers" argument allows you to specify whether or not to use speaker diarization.
 The JSON response file can be a local file or a file stored in a Google Cloud Storage bucket.
+
+The sttparser_to_docx.py script outputs a docx file.
 
 Without speakers:
 ```

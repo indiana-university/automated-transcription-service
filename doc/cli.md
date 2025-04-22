@@ -23,7 +23,7 @@ git clone <REPO URL>
 ```
 5. Execute json to Word. The result will be dropped in the location of inputFile
 ```
-python3 ~/automated-transcription-service/aws/src/lambda//docx/transcribe_to_docx.py --inputFile <JSON_FILE>
+python3 ~/automated-transcription-service/aws/src/lambda/docx/transcribe_to_docx.py --inputFile <JSON_FILE>
 ```
 6. (Optional) If a developer makes changes they can be picked up with the following command
 ```
