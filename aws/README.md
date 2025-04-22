@@ -39,7 +39,7 @@ terraform apply -var="region=us-west-2"
 The deployment will take a few minutes to complete. Once it is done, you should see the outputs and can test the application by uploading a file to the upload bucket. The upload bucket name is in the outputs of the terraform apply command. The output will be in the download bucket, also in the outputs of the terraform apply command.
 
 ### Testing
-Download this short audio file to your worksatation and then upload it to the upload bucket to test the application: https://upload.wikimedia.org/wikipedia/commons/0/0a/Charles_Duke_Intro.ogg
+Download this short audio file to your workstation and then upload it to the upload bucket to test the application: https://upload.wikimedia.org/wikipedia/commons/0/0a/Charles_Duke_Intro.ogg
 
 
 ### Clean up
