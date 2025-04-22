@@ -1,14 +1,15 @@
 # AWS code for Automated Transcription Service (ATS)
 ### Deploy infrastructure
 
+[!NOTE]
+>This guide assumes you have the prerequisites installed and configured. If you haven't done so, please refer to the [prerequisites guide](../doc/prerequisites.md) before proceeding.
+
 Clone the repository:
 
 ```bash
 git clone https://github.com/indiana-university/automated-transcription-service.git
 cd automated-transcription-service/aws/terraform/
 ```
-
-Edit the variables in the ats.auto.tfvars as necessary.
 
 Run `terraform init` to download the necessary provider(s). If you are not using the default AWS profile for access then you should also include an AWS named profile:
 
