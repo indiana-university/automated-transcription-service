@@ -1,7 +1,7 @@
 # AWS code for Automated Transcription Service (ATS)
 ### Deploy infrastructure
 
-[!NOTE]
+>[!NOTE]
 >This guide assumes you have the prerequisites installed and configured. If you haven't done so, please refer to the [prerequisites guide](../doc/prerequisites.md) before proceeding.
 
 Clone the repository:
