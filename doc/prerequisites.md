@@ -11,15 +11,23 @@ CloudShell already includes Docker and the CLI, so you only need to install Terr
 2. Run the following commands to install Terraform:
 
 ```bash
-sudo yum install -y yum-utils shadow-utils
+git clone https://github.com/tfutils/tfenv.git ~/.tfenv
 ```
 
 ```bash
-sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+mkdir ~/bin
 ```
 
 ```bash
-sudo yum -y install terraform
+ln -s ~/.tfenv/bin/* ~/bin/
+```
+
+```bash
+tfenv install
+```
+
+```bash
+tfenv use
 ```
 
 ## Workstation
