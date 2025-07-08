@@ -14,3 +14,5 @@ teams_notification = false #Whether to send a notification to Teams when a trans
 slack_notification = false #Whether to send a notification to Slack when a transcription is completed
 python_version     = "3.12" #Python version for Lambda functions
 document_title     = "Transcription Results" #Title of the document
+docx_image_uri     = "quay.io/rds/ats:latest" #Docker image URI for DOCX Lambda function
+build_docx_image   = false #Whether to build the DOCX Docker image locally instead of using pre-built image

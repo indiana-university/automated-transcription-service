@@ -2,13 +2,18 @@ data "aws_region" "current" {}
 
 data "aws_caller_identity" "this" {}
 
-data "aws_ecr_authorization_token" "token" {}
+# ECR authorization token - only needed when building locally
+data "aws_ecr_authorization_token" "token" {
+  count = var.build_docx_image ? 1 : 0
+}
 
+# Docker provider - only needed when building locally
 provider "docker" {
+  count = var.build_docx_image ? 1 : 0
   registry_auth {
     address  = format("%v.dkr.ecr.%v.amazonaws.com", data.aws_caller_identity.this.account_id, data.aws_region.current.name)
-    username = data.aws_ecr_authorization_token.token.user_name
-    password = data.aws_ecr_authorization_token.token.password
+    username = data.aws_ecr_authorization_token.token[0].user_name
+    password = data.aws_ecr_authorization_token.token[0].password
   }
 }
 
@@ -201,42 +206,6 @@ module "export_jobs" {
   }
 }
 
-module "docker_build" {
-  source  = "terraform-aws-modules/lambda/aws//modules/docker-build"
-  version = ">= 7.20.1"
-
-  create_ecr_repo = true
-  ecr_repo        = var.prefix
-  ecr_repo_lifecycle_policy = jsonencode({
-    "rules" : [
-      {
-        "rulePriority" : 1,
-        "description" : "Keep only the last 2 images",
-        "selection" : {
-          "tagStatus" : "any",
-          "countType" : "imageCountMoreThan",
-          "countNumber" : 2
-        },
-        "action" : {
-          "type" : "expire"
-        }
-      }
-    ]
-  })
-
-  use_image_tag = false # If false, sha of the image will be used
-
-  # use_image_tag = true
-  # image_tag   = "2.0"
-
-  source_path = "../src/lambda/docx"
-  platform    = "linux/amd64"
-  build_args = {
-    PYTHON_VERSION = var.python_version # Specify the Python version to use in the Dockerfile
-  }
-
-}
-
 module "docx" {
   source  = "terraform-aws-modules/lambda/aws"
   version = ">= 7.14.0"
@@ -254,7 +223,7 @@ module "docx" {
   package_type  = "Image"
   architectures = ["x86_64"] # ["arm64"]
 
-  image_uri = module.docker_build.image_uri
+  image_uri = var.build_docx_image ? module.docker_build[0].image_uri : var.docx_image_uri
   environment_variables = {
     MPLCONFIGDIR      = var.mpl
     BUCKET            = aws_s3_bucket.download.id
@@ -382,4 +351,38 @@ resource "aws_sns_topic_subscription" "slack_notification_subscription" {
   topic_arn = module.sns_topic.topic_arn
   protocol  = "lambda"
   endpoint  = module.slack-notification[0].lambda_function_arn
+}
+
+# Conditional Docker build module - only created when build_docx_image is true
+module "docker_build" {
+  count   = var.build_docx_image ? 1 : 0
+  source  = "terraform-aws-modules/lambda/aws//modules/docker-build"
+  version = ">= 7.20.1"
+
+  create_ecr_repo = true
+  ecr_repo        = var.prefix
+  ecr_repo_lifecycle_policy = jsonencode({
+    "rules" : [
+      {
+        "rulePriority" : 1,
+        "description" : "Keep only the last 2 images",
+        "selection" : {
+          "tagStatus" : "any",
+          "countType" : "imageCountMoreThan",
+          "countNumber" : 2
+        },
+        "action" : {
+          "type" : "expire"
+        }
+      }
+    ]
+  })
+
+  use_image_tag = false # If false, sha of the image will be used
+
+  source_path = "../src/lambda/docx"
+  platform    = "linux/amd64"
+  build_args = {
+    PYTHON_VERSION = var.python_version
+  }
 }

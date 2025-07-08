@@ -93,3 +93,15 @@ variable "document_title" {
   type        = string
   default     = "Transcription Results"
 }
+
+variable "docx_image_uri" {
+  description = "Docker image URI for the DOCX Lambda function. Defaults to pre-built image from Quay.io"
+  type        = string
+  default     = "quay.io/rds/ats:latest"
+}
+
+variable "build_docx_image" {
+  description = "Whether to build the DOCX Docker image locally instead of using the pre-built image"
+  type        = bool
+  default     = false
+}

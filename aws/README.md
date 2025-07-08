@@ -41,6 +41,67 @@ The deployment will take a few minutes to complete. Once it is done, you should 
 ### Testing
 Download this short audio file to your workstation and then upload it to the upload bucket to test the application: https://upload.wikimedia.org/wikipedia/commons/0/0a/Charles_Duke_Intro.ogg
 
+### Custom Docker Image (Optional)
+
+By default, the DOCX Lambda function uses a pre-built Docker image from `quay.io/rds/ats:latest`. If you need to customize the image, you have two options:
+
+#### Option 1: Build During Terraform Deployment (Legacy Mode)
+
+Set the `build_docx_image` variable to `true` to build the image during deployment:
+
+```bash
+terraform apply -var="build_docx_image=true"
+```
+
+Or add it to your `ats.auto.tfvars` file:
+```hcl
+build_docx_image = true
+```
+
+This will create an ECR repository and build the image from the `../src/lambda/docx` directory during the Terraform deployment.
+
+>[!WARNING]
+>This option increases deployment time and resource usage significantly.
+
+#### Option 2: Pre-build and Push to ECR (Recommended)
+
+For better performance, pre-build your custom image and push it to ECR, then reference it:
+
+1. **Create an ECR repository** in your AWS account:
+   ```bash
+   aws ecr create-repository --repository-name ats-custom --region us-east-1
+   ```
+
+2. **Build and push your custom image**:
+   ```bash
+   # Navigate to the lambda/docx directory
+   cd ../src/lambda/docx
+   
+   # Get the login token for ECR
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
+   
+   # Build the Docker image
+   docker build -t ats-custom .
+   
+   # Tag the image for ECR
+   docker tag ats-custom:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/ats-custom:latest
+   
+   # Push the image to ECR
+   docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/ats-custom:latest
+   ```
+
+3. **Update your Terraform configuration** to use the custom image:
+   ```bash
+   terraform apply -var="docx_image_uri=<account-id>.dkr.ecr.us-east-1.amazonaws.com/ats-custom:latest"
+   ```
+
+   Or add it to your `ats.auto.tfvars` file:
+   ```hcl
+   docx_image_uri = "<account-id>.dkr.ecr.us-east-1.amazonaws.com/ats-custom:latest"
+   ```
+
+>[!NOTE]
+>Replace `<account-id>` with your actual AWS account ID.
 
 ### Clean up
 To clean up the resources created by terraform, run:
