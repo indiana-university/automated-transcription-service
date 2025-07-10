@@ -90,8 +90,8 @@ module "teams-notification" {
   source_path = "../src/lambda/notifications/teams"
 
   environment_variables = {
-    LOG_LEVEL   = "INFO"
-    WEBHOOK_URL = var.teams_webhook
+    LOG_LEVEL          = "INFO"
+    WEBHOOK_SECRET_ARN = var.teams_notification ? aws_secretsmanager_secret.teams_webhook[0].arn : ""
   }
 
   attach_policy_json = true
@@ -129,6 +129,14 @@ module "teams-notification" {
                 "sns:GetSubscriptionAttributes"
             ],
             "Resource": "${module.sns_topic.topic_arn}"
+        },
+        {
+            "Sid": "SecretsManagerAccess",
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue"
+            ],
+            "Resource": "${var.teams_notification ? aws_secretsmanager_secret.teams_webhook[0].arn : "*"}"
         }
     ]
   }
@@ -319,8 +327,8 @@ module "slack-notification" {
   source_path = "../src/lambda/notifications/slack"
 
   environment_variables = {
-    LOG_LEVEL   = "INFO"
-    WEBHOOK_URL = var.slack_webhook
+    LOG_LEVEL          = "INFO"
+    WEBHOOK_SECRET_ARN = var.slack_notification ? aws_secretsmanager_secret.slack_webhook[0].arn : ""
   }
 
   attach_policy_json = true
@@ -358,6 +366,14 @@ module "slack-notification" {
                 "sns:GetSubscriptionAttributes"
             ],
             "Resource": "${module.sns_topic.topic_arn}"
+        },
+        {
+            "Sid": "SecretsManagerAccess",
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue"
+            ],
+            "Resource": "${var.slack_notification ? aws_secretsmanager_secret.slack_webhook[0].arn : "*"}"
         }
     ]
   }
