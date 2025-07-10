@@ -26,6 +26,7 @@ def lambda_handler(event, context):
 
     if not webhook or webhook == "DISABLED":
         print(f"notify_teams disabled, logging message instead: {title} {content}")
+        return
 
     if not title:
         title = "ATS notification"
