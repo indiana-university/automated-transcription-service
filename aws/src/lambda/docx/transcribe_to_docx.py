@@ -550,7 +550,16 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
     # Process a Speaker-separated non-analytics file
     if isSpeakerMode:
         # A segment is a blob of pronunciation and punctuation by an individual speaker
-        for segment in data["results"]["speaker_labels"]["segments"]:
+        try:
+            segments = data["results"]["speaker_labels"]["segments"]
+            if segments is None:
+                print("Warning: speaker_labels segments is None, returning empty list")
+                return speechSegmentList
+        except (KeyError, TypeError) as e:
+            print(f"Warning: Missing or invalid speaker_labels structure: {e}, returning empty list")
+            return speechSegmentList
+            
+        for segment in segments:
 
             # If there is content in the segment then pick out the time and speaker
             if len(segment["items"]) > 0:
@@ -613,7 +622,16 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
     elif isChannelMode:
 
         # A channel contains all pronunciation and punctuation from a single speaker
-        for channel in data["results"]["channel_labels"]["channels"]:
+        try:
+            channels = data["results"]["channel_labels"]["channels"]
+            if channels is None:
+                print("Warning: channel_labels channels is None, returning empty list")
+                return speechSegmentList
+        except (KeyError, TypeError) as e:
+            print(f"Warning: Missing or invalid channel_labels structure: {e}, returning empty list")
+            return speechSegmentList
+            
+        for channel in channels:
 
             # If there is content in the channel then start processing it
             if len(channel["items"]) > 0:
@@ -684,7 +702,16 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
 
     # Process an Audio-segment non-analytics file
     elif isAudioSegmentsMode:
-        for segment in data["results"]["audio_segments"]:
+        try:
+            audio_segments = data["results"]["audio_segments"]
+            if audio_segments is None:
+                print("Warning: audio_segments is None, returning empty list")
+                return speechSegmentList
+        except (KeyError, TypeError) as e:
+            print(f"Warning: Missing or invalid audio_segments structure: {e}, returning empty list")
+            return speechSegmentList
+            
+        for segment in audio_segments:
             nextSpeechSegment = SpeechSegment()
             nextSpeechSegment.segmentStartTime = float(segment["start_time"])
             nextSpeechSegment.segmentEndTime = float(segment["end_time"])
