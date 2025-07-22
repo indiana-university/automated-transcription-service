@@ -9,7 +9,7 @@ def get_webhook_url():
     secret_arn = os.environ.get('WEBHOOK_SECRET_ARN')
     
     if not secret_arn or secret_arn == "":
-        return os.environ.get('WEBHOOK_URL', 'DISABLED')  # Fallback for backwards compatibility
+        return 'DISABLED'
     
     try:
         secrets_client = boto3.client('secretsmanager')
@@ -17,7 +17,7 @@ def get_webhook_url():
         return response['SecretString']
     except Exception as e:
         print(f"Failed to retrieve webhook URL from Secrets Manager: {e}")
-        return os.environ.get('WEBHOOK_URL', 'DISABLED')  # Fallback
+        return 'DISABLED'
 
 def lambda_handler(event, context):
     webhook = get_webhook_url()
