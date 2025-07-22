@@ -1,15 +1,32 @@
 import json
 import os
+import boto3
 from urllib.request import urlopen
 from urllib.request import Request
- 
+
+def get_webhook_url():
+    """Retrieve webhook URL from AWS Secrets Manager"""
+    secret_arn = os.environ.get('WEBHOOK_SECRET_ARN')
+    
+    if not secret_arn or secret_arn == "":
+        return 'DISABLED'
+    
+    try:
+        secrets_client = boto3.client('secretsmanager')
+        response = secrets_client.get_secret_value(SecretId=secret_arn)
+        return response['SecretString']
+    except Exception as e:
+        print(f"Failed to retrieve webhook URL from Secrets Manager: {e}")
+        return 'DISABLED'
+
 def lambda_handler(event, context):
-    webhook = os.environ['WEBHOOK_URL']
+    webhook = get_webhook_url()
     title = event['Records'][0]['Sns']['Subject']
     content = event['Records'][0]['Sns']['Message']
- 
+
     if not webhook or webhook == "DISABLED":
         print(f"notify_teams disabled, logging message instead: {title} {content}")
+        return
 
     if not title:
         title = "ATS notification"
