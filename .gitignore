@@ -167,4 +167,4 @@ override.tf.json
 # example: *tfplan*
 
 #Avoid picking up any .DS_Store files from Mac OS
-.DS_Storeterraform_*.zip
+.DS_Store
