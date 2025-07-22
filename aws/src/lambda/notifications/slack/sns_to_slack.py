@@ -1,10 +1,31 @@
 import json
 import os
+import boto3
 from urllib.request import urlopen
 from urllib.request import Request
+
+def get_webhook_url():
+    """Get webhook URL from AWS Secrets Manager using WEBHOOK_SECRET_ARN.
+    
+    Returns:
+        str: The webhook URL from the secret, or 'DISABLED' if WEBHOOK_SECRET_ARN 
+             is not set/empty or if an exception occurs during secret retrieval.
+    """
+    webhook_secret_arn = os.environ.get('WEBHOOK_SECRET_ARN')
+    
+    if not webhook_secret_arn:
+        return 'DISABLED'
+    
+    try:
+        secrets_client = boto3.client('secretsmanager')
+        response = secrets_client.get_secret_value(SecretId=webhook_secret_arn)
+        secret_data = json.loads(response['SecretString'])
+        return secret_data.get('webhook_url', 'DISABLED')
+    except Exception:
+        return 'DISABLED'
  
 def lambda_handler(event, context):
-    webhook = os.environ['WEBHOOK_URL']
+    webhook = get_webhook_url()
     title = event['Records'][0]['Sns']['Subject']
     content = event['Records'][0]['Sns']['Message']
  
