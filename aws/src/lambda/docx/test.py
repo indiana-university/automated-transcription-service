@@ -125,5 +125,22 @@ class TestSum(unittest.TestCase):
         result = target.create_turn_by_turn_segments(data_valid_audio_segments, isAudioSegmentsMode=True)
         self.assertEqual(result, [])
 
+    def test_create_turn_by_turn_segments_korean_japanese_scenario(self):
+        """Test the specific scenario from the issue: Korean interpreted as Japanese by Transcribe"""
+        # Simulate the case where Transcribe fails to process Korean audio interpreted as Japanese
+        # This might result in missing or null speaker_labels
+        problematic_transcript = {
+            "jobName": "korean-audio-job",
+            "results": {
+                "speaker_labels": None,  # This is what likely caused the original error
+                "items": []
+            }
+        }
+        
+        # This should not throw an exception and should return an empty list
+        result = target.create_turn_by_turn_segments(problematic_transcript, isSpeakerMode=True)
+        self.assertEqual(result, [])
+        self.assertIsInstance(result, list)
+
 if __name__ == '__main__':
     unittest.main()
