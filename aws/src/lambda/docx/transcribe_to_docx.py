@@ -353,7 +353,7 @@ def write(data, speech_segments, job_info, output_file):
         dur_text = str(int(global_audio_duration / 60)) + "m " + str(round(global_audio_duration % 60, 2)) + "s"
         job_data.append({"name": "Audio Duration", "value": dur_text})
     # We can infer diarization mode from the JSON results data structure
-    if "speaker_labels" in data["results"]:
+    if "speaker_labels" in data["results"] and data["results"]["speaker_labels"] is not None:
         job_data.append({"name": "Audio Identification", "value": "Speaker-separated"})
     elif "channel_labels" in data["results"]:
         job_data.append({"name": "Audio Identification", "value": "Channel-separated"})
@@ -995,7 +995,7 @@ def generate_document():
     start = perf_counter()
     if "channel_labels" in json_data["results"]:
         speech_segments = create_turn_by_turn_segments(json_data, isChannelMode = True)
-    elif "speaker_labels" in json_data["results"]:
+    elif "speaker_labels" in json_data["results"] and json_data["results"]["speaker_labels"] is not None:
         speech_segments = create_turn_by_turn_segments(json_data, isSpeakerMode = True)
     elif "audio_segments" in json_data["results"]:
         speech_segments = create_turn_by_turn_segments(json_data, isAudioSegmentsMode = True)
