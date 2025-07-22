@@ -4,7 +4,7 @@ Terraform code to deploy the infrastructure used in ATS.
 
 ## Secret Manager Integration
 
-As of this version, Teams and Slack webhook URLs are stored securely in AWS Secrets Manager instead of directly in environment variables. 
+Teams and Slack webhook URLs are stored securely in AWS Secrets Manager instead of directly in environment variables. 
 
 ### Configuration
 When you enable Teams or Slack notifications (`teams_notification = true` or `slack_notification = true`), the system will:
