@@ -226,7 +226,7 @@ def write_custom_text_header(document, text_label, level=3):
     :param text_label: Header text to write out
     :return:
     """
-    paragraph = document.add_heading(text_label, level)
+    document.add_heading(text_label, level)
 
 def write_confidence_scores(document, stats, temp_files):
     """
@@ -417,14 +417,14 @@ def write(data, speech_segments, job_info, output_file):
     # At this point, if we have no transcript then we need to quickly exit
     if len(speech_segments) == 0:
         document.add_section(WD_SECTION.CONTINUOUS)
-        section_ptr = document.sections[-1]._sectPr
+        document.sections[-1]._sectPr
         write_custom_text_header(document, "This file had no audible speech to transcribe.")
     else:
         # Process and display transcript by speaker segments (new section)
         # -- Conversation "turn" start time and duration
         # -- Speaker identification
         document.add_section(WD_SECTION.CONTINUOUS)
-        section_ptr = document.sections[-1]._sectPr
+        document.sections[-1]._sectPr
         write_custom_text_header(document, "Audio Transcription")
         document.add_paragraph()  # Spacing
         write_small_header_text(document, "WORD CONFIDENCE: >= " + str(confidence_env) + "% in black, ", (confidence_env / 100))
@@ -479,8 +479,8 @@ def get_json(download_url):
             with urlopen(download_url) as f:
                 file_content = f.read().decode('utf-8')
                 transcript = json.loads(file_content)
-        except:
-            print(f"Error downloading from: {download_url}")
+        except Exception as e:
+            print(f"Error downloading from: {download_url}. Exception: {e}")
     else:
         # Transcription stored in a bucket
         try:
@@ -583,7 +583,7 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
                     try:
                         result = sorted(word_result[-1]["alternatives"], key=lambda x: x["confidence"])[-1]
                         confidence = float(result["confidence"])
-                    except:
+                    except Exception:
                         result = word_result[-1]["alternatives"][0]
                         confidence = float(result["redactions"][0]["confidence"])
 
@@ -649,10 +649,9 @@ def create_turn_by_turn_segments(data, isSpeakerMode=False, isChannelMode=False,
                         try:
                             result = sorted(word_result[-1]["alternatives"], key=lambda x: x["confidence"])[-1]
                             confidence = float(result["confidence"])
-                        except:
+                        except Exception:
                             result = word_result[-1]["alternatives"][0]
                             confidence = float(result["redactions"][0]["confidence"])
-                        # result = sorted(word_result[-1]["alternatives"], key=lambda x: x["confidence"])[-1]
 
                         # Write the word, and a leading space if this isn't the start of the segment
                         if (skipLeadingSpace):
@@ -800,11 +799,11 @@ def lambda_handler(event, context):
         }
 
     # Check the job settings for speaker/channel/audio ID
-    if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == True:
+    if "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"]:
         speech_segments = create_turn_by_turn_segments(transcript, isChannelMode = True)
-    elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"] == True:
+    elif "ShowSpeakerLabels" in job_info["Settings"] and job_info["Settings"]["ShowSpeakerLabels"]:
         speech_segments = create_turn_by_turn_segments(transcript, isSpeakerMode = True)
-    elif "ChannelIdentification" in job_info["Settings"] and job_info["Settings"]["ChannelIdentification"] == False:
+    elif "ChannelIdentification" in job_info["Settings"] and not job_info["Settings"]["ChannelIdentification"]:
         speech_segments = create_turn_by_turn_segments(transcript, isAudioSegmentsMode = True)
     else:
         # We do not support non-speaker mode in this version
@@ -898,7 +897,7 @@ def load_transcribe_job_status(cli_args):
         job_status = transcribe_client.get_transcription_job(TranscriptionJobName=cli_args.inputJob)["TranscriptionJob"]
         cli_args.analyticsMode = False
         completed = job_status["TranscriptionJobStatus"]
-    except:
+    except Exception:
         # That job doesn't exist, but it may have been an analytics job
         job_status = transcribe_client.get_call_analytics_job(CallAnalyticsJobName=cli_args.inputJob)["CallAnalyticsJob"]
         cli_args.analyticsMode = True
@@ -925,7 +924,7 @@ def generate_document():
     if cli_args.inputJob is not None:
         try:
             job_info, job_status = load_transcribe_job_status(cli_args)
-        except:
+        except Exception:
             # Exception, most-likely due to the job not existing
             print("NOT FOUND: Requested job-id '{0}' does not exist.".format(cli_args.inputJob))
             exit(-1)
@@ -951,8 +950,8 @@ def generate_document():
         # an S3 bucket, as in that case the service no longer has the results
         try:
             urlretrieve(download_url, cli_args.inputFile)
-        except:
-            print("UNAVAILABLE: Transcript for job-id '{0}' is not available for download.".format(cli_args.inputJob))
+        except Exception as e:
+            print("UNAVAILABLE: Transcript for job-id '{0}' is not available for download. Exception: {1}".format(cli_args.inputJob, e))
             exit(-1)
 
         # Set our output filename if one wasn't supplied
@@ -980,7 +979,7 @@ def generate_document():
                     cli_args.outputFile = json_data["JobName"] + ".docx"
                     cli_args.inputJob = json_data["JobName"]
             job_info, job_status = load_transcribe_job_status(cli_args)
-        except:
+        except Exception:
             # No job status - need to quickly work out what mode we're in,
             # as standard job results look different from analytical ones
             cli_args.inputJob = None
