@@ -93,3 +93,9 @@ variable "document_title" {
   type        = string
   default     = "Transcription Results"
 }
+
+variable "transcribe_job_timeout_seconds" {
+  description = "Timeout in seconds for transcribe job completion in the step function workflow"
+  type        = number
+  default     = 14400  # 4 hours - reasonable default for transcription jobs
+}

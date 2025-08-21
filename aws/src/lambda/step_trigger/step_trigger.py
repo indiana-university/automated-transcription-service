@@ -14,7 +14,7 @@ def lambda_handler(event, context):
     Entrypoint for the step trigger Lambda function. 
     Transforms S3 event into step function input and starts the workflow.
     """
-    print("audio_to_transcribe.lambda_handler started - now triggering step function")
+    print("step_trigger.lambda_handler started")
     
     step_functions = boto3.client('stepfunctions')
     state_machine_arn = os.environ['STATE_MACHINE_ARN']
@@ -31,7 +31,7 @@ def lambda_handler(event, context):
             s3_object = unquote_plus(s3_record['s3']['object']['key'])
             s3_bucket = s3_record['s3']['bucket']['name']
             
-            # Generate job name similar to original audio_to_transcribe
+            # Generate job name similar to audio_to_transcribe
             job_name = re.sub('[^a-zA-Z0-9_\-.]+', '_', s3_object) + '-' + str(uuid.uuid4())
             
             # Construct S3 URI
