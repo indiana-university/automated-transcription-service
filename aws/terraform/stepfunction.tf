@@ -70,6 +70,7 @@ module "step_function" {
           "TranscriptionJobName.$": "$.job_name"
         },
         "Next": "Check Transcription Status",
+        "ResultPath": "$.TranscriptionJobResult",
         "Retry": [
           {
             "ErrorEquals": [
@@ -86,17 +87,25 @@ module "step_function" {
         "Type": "Choice",
         "Choices": [
           {
-            "Variable": "$.TranscriptionJob.TranscriptionJobStatus",
+            "Variable": "$.TranscriptionJobResult.TranscriptionJob.TranscriptionJobStatus",
             "StringEquals": "COMPLETED",
-            "Next": "Create DOCX"
+            "Next": "Transform for DOCX"
           },
           {
-            "Variable": "$.TranscriptionJob.TranscriptionJobStatus", 
+            "Variable": "$.TranscriptionJobResult.TranscriptionJob.TranscriptionJobStatus", 
             "StringEquals": "IN_PROGRESS",
             "Next": "Check Timeout"
           }
         ],
         "Default": "Transcribe failed notification"
+      },
+      "Transform for DOCX": {
+        "Comment": "Transform data for DOCX lambda input format.",
+        "Type": "Pass",
+        "Parameters": {
+          "TranscriptionJob.$": "$.TranscriptionJobResult.TranscriptionJob"
+        },
+        "Next": "Create DOCX"
       },
       "Check Timeout": {
         "Comment": "Check if we have exceeded the timeout.",
@@ -104,20 +113,22 @@ module "step_function" {
         "Choices": [
           {
             "Variable": "$.elapsed_time",
-            "NumericGreaterThan": ${var.transcribe_job_timeout_seconds},
+            "NumericGreaterThanEquals": ${var.transcribe_job_timeout_seconds},
             "Next": "Transcribe timeout notification"
           }
         ],
         "Default": "Update Elapsed Time"
       },
       "Update Elapsed Time": {
-        "Comment": "Update elapsed time counter.",
+        "Comment": "Update elapsed time counter and preserve state for next iteration.",
         "Type": "Pass",
         "Parameters": {
           "elapsed_time.$": "States.MathAdd($.elapsed_time, 30)",
           "job_name.$": "$.job_name",
-          "media_uri.$": "$.media_uri",
-          "output_prefix.$": "$.output_prefix"
+          "media_uri.$": "$.media_uri", 
+          "output_prefix.$": "$.output_prefix",
+          "original_s3_key.$": "$.original_s3_key",
+          "original_s3_bucket.$": "$.original_s3_bucket"
         },
         "Next": "Wait for Transcribe Job"
       },
@@ -256,7 +267,8 @@ module "step_function" {
       effect = "Allow"
       actions = [
         "transcribe:StartTranscriptionJob",
-        "transcribe:GetTranscriptionJob"
+        "transcribe:GetTranscriptionJob",
+        "transcribe:TagResource"
       ]
       resources = ["*"]
     }
