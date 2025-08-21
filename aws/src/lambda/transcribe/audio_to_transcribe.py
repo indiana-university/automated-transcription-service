@@ -32,7 +32,7 @@ def lambda_handler(event, context):
             s3_bucket = s3_record['s3']['bucket']['name']
             
             # Generate job name similar to original audio_to_transcribe
-            job_name = re.sub('[^a-zA-Z0-9_\-.]+', '_', s3_object) + '-' + str(uuid.uuid4())
+            job_name = re.sub(r'[^a-zA-Z0-9_\-.]+', '_', s3_object) + '-' + str(uuid.uuid4())
             
             # Construct S3 URI
             media_uri = f"s3://{s3_bucket}/{s3_object}"
