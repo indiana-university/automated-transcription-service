@@ -1,0 +1,14 @@
+name: Ruff
+
+on: [ push, pull_request ]
+
+jobs:
+  ruff:
+    name: Ruff Linter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run Ruff
+        uses: astral-sh/ruff-action@v3
