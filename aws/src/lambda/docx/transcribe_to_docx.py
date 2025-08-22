@@ -63,7 +63,8 @@ today = dt.now().strftime("%Y%m%d")
 s3 = boto3.client('s3')
 
 # Transcribe client to read job results
-if __name__ != "__main__": ts_client = boto3.client('transcribe')
+if __name__ != "__main__":
+    ts_client = boto3.client('transcribe')
 
 confidence_env = int(os.environ.get('CONFIDENCE', 90))
 
@@ -367,12 +368,14 @@ def write(data, speech_segments, job_info, output_file):
             job_data.append({"name": "Language", "value": job_info["LanguageCode"]})
         elif "LanguageCodes" in job_info: # AWS job_info
             languages = []
-            for language in job_info["LanguageCodes"]: languages.append(language["LanguageCode"])
+            for language in job_info["LanguageCodes"]:
+                languages.append(language["LanguageCode"])
             global_languages = ', '.join(languages)
             job_data.append({"name": "Language(s)", "value": global_languages})
         elif "language_codes" in job_info: # json job_info
             languages = []
-            for language in job_info["language_codes"]: languages.append(language["language_code"])
+            for language in job_info["language_codes"]:
+                languages.append(language["language_code"])
             global_languages = ', '.join(languages)
             job_data.append({"name": "Language(s)", "value": global_languages})
         if "MediaFormat" in job_info:

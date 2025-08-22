@@ -43,7 +43,7 @@ def print_transcript(response, speakers=False):
         current_words = []
         try:
             current_speaker = best_alternative['words'][0]['speakerTag']
-        except:
+        except (KeyError, IndexError, TypeError):
             print("Speaker diarization not enabled.")
             exit()
         current_ts = best_alternative['words'][0]['startTime']

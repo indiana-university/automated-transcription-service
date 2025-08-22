@@ -7,7 +7,7 @@ import argparse
 import os
 from google.cloud import storage
 from urllib.parse import urlparse
-from docx.shared import Cm, Mm, Pt, Inches, RGBColor
+from docx.shared import Mm, Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx import Document
 
@@ -53,7 +53,7 @@ def print_transcript(response, document, speakers=False):
         best_alternative = transcript['alternatives'][0]
         try:
             current_speaker = best_alternative['words'][0]['speakerTag']
-        except:
+        except (KeyError, IndexError, TypeError):
             document.add_paragraph("Speaker diarization not enabled.")
             return
         current_ts = best_alternative['words'][0]['startTime']
@@ -153,7 +153,7 @@ def write_custom_text_header(document, text_label):
     :param text_label: Header text to write out
     :return:
     """
-    paragraph = document.add_heading(text_label, level=3)
+    document.add_heading(text_label, level=3)
 
 def main():
     parser = argparse.ArgumentParser('Print formatted transcipts from a speech-to-text JSON response.')
