@@ -30,8 +30,8 @@ module "transcribe" {
   publish       = true
   source_path   = "../src/lambda/transcribe"
   environment_variables = {
-    LOG_LEVEL = "INFO"
-    BUCKET    = aws_s3_bucket.download.id
+    LOG_LEVEL         = "INFO"
+    STATE_MACHINE_ARN = module.step_function.state_machine_arn
   }
 
   attach_policy_json = true
@@ -40,32 +40,26 @@ module "transcribe" {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "VisualEditor1",
+            "Sid": "SQSAccess",
             "Effect": "Allow",
             "Action": [
-                "s3:PutObject",
-                "s3:GetObject",
-                "s3:ListBucket",
-                "transcribe:GetTranscriptionJob",
                 "sqs:ReceiveMessage",
                 "sqs:DeleteMessage",
                 "sqs:GetQueueAttributes"
             ],
             "Resource": [
-                "${aws_sqs_queue.audio_to_transcribe.arn}",
-                "${aws_s3_bucket.download.arn}/*",
-                "${aws_s3_bucket.download.arn}",
-                "${aws_s3_bucket.upload.arn}/*",
-                "${aws_s3_bucket.upload.arn}"
+                "${aws_sqs_queue.audio_to_transcribe.arn}"
             ]
         },
         {
-            "Sid": "VisualEditor2",
+            "Sid": "StepFunctionsAccess",
             "Effect": "Allow",
             "Action": [
-                "transcribe:StartTranscriptionJob"
+                "states:StartExecution"
             ],
-            "Resource": "*"
+            "Resource": [
+                "${module.step_function.state_machine_arn}"
+            ]
         }
     ]
   }

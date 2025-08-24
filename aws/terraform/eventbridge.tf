@@ -1,6 +1,6 @@
 resource "aws_cloudwatch_event_rule" "transcribe_job_rule" {
   name        = "${var.prefix}-capture-transcribe-job-end"
-  description = "Capture when Transcribe job ends"
+  description = "Capture when Transcribe job ends (disabled - handled by step function)"
   event_pattern = jsonencode({
     "detail" : {
       "TranscriptionJobStatus" : ["COMPLETED", "FAILED"]
@@ -8,7 +8,7 @@ resource "aws_cloudwatch_event_rule" "transcribe_job_rule" {
     "detail-type" : ["Transcribe Job State Change"],
     "source" : ["aws.transcribe"]
   })
-  state = "ENABLED"
+  state = "DISABLED"  # Disable this rule since ATS jobs are now handled by step function
 }
 
 resource "aws_iam_role" "eventbridge_role" {
