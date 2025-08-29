@@ -1,2 +1,2 @@
-boto3==1.25.1
-python-docx==0.8.11
+boto3==1.40.20
+python-docx==1.2.0
