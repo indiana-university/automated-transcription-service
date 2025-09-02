@@ -1,64 +1,72 @@
 import boto3
-from urllib.parse import unquote_plus
 import json
-from datetime import datetime as dt
 import os
 import uuid
 import re
+from urllib.parse import unquote_plus
+from datetime import datetime as dt
 
-# Get current date for S3 folder name:
+# Get current date for S3 folder name
 today = dt.now().strftime("%Y%m%d")
-
-# S3 client to read/write files
-s3 = boto3.client('s3')
-
-# Transcribe client to read job results
-ts_client = boto3.client('transcribe')
 
 def lambda_handler(event, context):
     """
-    Entrypoint for the transcribe Lambda function. Pulls batch of messages from SQS standard queue.
+    Entrypoint for the step trigger Lambda function. 
+    Transforms S3 event into step function input and starts the workflow.
     """
-    print("audio_to_transcribe.lambda_handler started")
-
-    s3bucketOutput = os.environ["BUCKET"]
+    print("audio_to_transcribe.lambda_handler started - now triggering step function")
+    
+    step_functions = boto3.client('stepfunctions')
+    state_machine_arn = os.environ['STATE_MACHINE_ARN']
+    
     batch_failures = []
+    
     for record in event["Records"]:
-        event_message = json.loads(record["body"])
-        print(f"Event message: {event_message}")
-
-        recordZero = event_message['Records'][0]
-        # unquote_plus to handle spaces
-        s3object = unquote_plus(recordZero['s3']['object']['key'])
-        s3bucketInput = recordZero['s3']['bucket']['name']
-
-        s3Path = "s3://" + s3bucketInput + "/" + s3object
-        jobName = re.sub('[^a-zA-Z0-9_\-.]+','_', s3object) + '-' + str(uuid.uuid4())
-
         try:
-            response = ts_client.start_transcription_job(
-                TranscriptionJobName=jobName,
-                Settings={
-                    'ShowSpeakerLabels': True,
-                    'MaxSpeakerLabels': 10,
-                },
-                IdentifyMultipleLanguages=True,
-                Media={
-                    'MediaFileUri': s3Path
-                },
-                OutputBucketName = s3bucketOutput,
-                OutputKey = today + "/"
+            # Parse S3 event from SQS message
+            event_message = json.loads(record["body"])
+            s3_record = event_message['Records'][0]
+            
+            # Extract S3 details
+            s3_object = unquote_plus(s3_record['s3']['object']['key'])
+            s3_bucket = s3_record['s3']['bucket']['name']
+            
+            # Generate job name similar to original audio_to_transcribe
+            job_name = re.sub(r'[^a-zA-Z0-9_\-.]+', '_', s3_object) + '-' + str(uuid.uuid4())
+            
+            # Construct S3 URI
+            media_uri = f"s3://{s3_bucket}/{s3_object}"
+            
+            # Create step function input
+            step_input = {
+                "job_name": job_name,
+                "media_uri": media_uri,
+                "output_prefix": f"{today}/",
+                "elapsed_time": 0,
+                "original_s3_key": s3_object,
+                "original_s3_bucket": s3_bucket
+            }
+            
+            print(f"Starting step function with input: {step_input}")
+            
+            # Start step function execution
+            response = step_functions.start_execution(
+                stateMachineArn=state_machine_arn,
+                name=f"ats-{job_name}",
+                input=json.dumps(step_input)
             )
-            print(response)
+            
+            print(f"Step function execution started: {response['executionArn']}")
+            
         except Exception as e:
-            print(e)
+            print(f"Error processing record: {e}")
             batch_failures.append({"itemIdentifier": record["messageId"]})
             continue
-
-    # Send failed messages back to queue for retry
+    
+    # Return batch failures for SQS retry
     sqs_response = {}
     if len(batch_failures) > 0:
         sqs_response["batchItemFailures"] = batch_failures
-
+    
     print(f"Function ending. Response={sqs_response}")
     return sqs_response
