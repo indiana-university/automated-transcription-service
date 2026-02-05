@@ -22,6 +22,7 @@ def lambda_handler(event, context):
     print("audio_to_transcribe.lambda_handler started")
 
     s3bucketOutput = os.environ["BUCKET"]
+    tag = os.environ.get("TAG", "ats")
     batch_failures = []
     for record in event["Records"]:
         event_message = json.loads(record["body"])
@@ -51,7 +52,7 @@ def lambda_handler(event, context):
                 Tags=[
                 {
                     'Key': 'Source',
-                    'Value': 'ATS'
+                    'Value': tag
                 }
             ]
             )

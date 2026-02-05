@@ -7,8 +7,35 @@ module "step_function" {
   definition = <<EOF
   {
     "Comment": "Step function to perform post-processing on Transcriptions.",
-    "StartAt": "Transcribed?",
+    "StartAt": "GetTranscriptionJob",
     "States": {
+      "GetTranscriptionJob": {
+        "Type": "Task",
+        "Parameters": {
+          "TranscriptionJobName.$": "$.detail.TranscriptionJobName"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
+        "Next": "Tagged?",
+        "ResultPath": null,
+        "Assign": {
+          "tags.$": "$.TranscriptionJob.Tags"
+        }
+      },
+      "Tagged?": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Next": "Transcribed?",
+            "Variable": "$tags[0].Value",
+            "StringEquals": "${var.prefix}"
+          }
+        ],
+        "Default": "Untagged"
+      },
+      "Untagged": {
+        "Type": "Pass",
+        "End": true
+      },
       "Transcribed?": {
         "Comment": "Check to see if Transcribe job completed.",
         "Type": "Choice",

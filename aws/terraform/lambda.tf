@@ -32,6 +32,7 @@ module "transcribe" {
   environment_variables = {
     LOG_LEVEL = "INFO"
     BUCKET    = aws_s3_bucket.download.id
+    TAG       = var.prefix
   }
 
   attach_policy_json = true
@@ -47,6 +48,7 @@ module "transcribe" {
                 "s3:GetObject",
                 "s3:ListBucket",
                 "transcribe:GetTranscriptionJob",
+                "transcribe:TagResource",
                 "sqs:ReceiveMessage",
                 "sqs:DeleteMessage",
                 "sqs:GetQueueAttributes"
