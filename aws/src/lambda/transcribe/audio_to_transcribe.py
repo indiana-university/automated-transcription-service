@@ -47,7 +47,13 @@ def lambda_handler(event, context):
                     'MediaFileUri': s3Path
                 },
                 OutputBucketName = s3bucketOutput,
-                OutputKey = today + "/"
+                OutputKey = today + "/",
+                Tags=[
+                {
+                    'Key': 'Source',
+                    'Value': 'ATS'
+                }
+            ]
             )
             print(response)
         except Exception as e:
