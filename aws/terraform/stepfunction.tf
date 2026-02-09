@@ -15,19 +15,49 @@ module "step_function" {
           "TranscriptionJobName.$": "$.detail.TranscriptionJobName"
         },
         "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
-        "Next": "Tagged?",
-        "ResultPath": null,
+        "Next": "HasTags?",
+        "ResultPath": "$.transcribe"
+      },
+      "HasTags?": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.transcribe.TranscriptionJob.Tags",
+            "IsPresent": true,
+            "Next": "AssignTags"
+          }
+        ],
+        "Default": "AssignNoTags"
+      },
+      "AssignTags": {
+        "Type": "Pass",
         "Assign": {
-          "tags.$": "$.TranscriptionJob.Tags"
-        }
+          "tags.$": "$.transcribe.TranscriptionJob.Tags"
+        },
+        "Next": "Tagged?"
+      },
+      "AssignNoTags": {
+        "Type": "Pass",
+        "Assign": {
+          "tags": []
+        },
+        "Next": "Tagged?"
       },
       "Tagged?": {
         "Type": "Choice",
         "Choices": [
           {
-            "Next": "Transcribed?",
-            "Variable": "$tags[0].Value",
-            "StringEquals": "${var.prefix}"
+            "And": [
+              {
+                "Variable": "$tags[0].Value",
+                "IsPresent": true
+              },
+              {
+                "Variable": "$tags[0].Value",
+                "StringEquals": "${var.prefix}"
+              }
+            ],
+            "Next": "Transcribed?"
           }
         ],
         "Default": "Untagged"
@@ -166,4 +196,21 @@ module "step_function" {
   tags = {
     Project = "ATS"
   }
+}
+
+resource "aws_iam_role_policy" "transcribe" {
+  name   = "${var.prefix}-step-function-transcribe"
+  role   = module.step_function.role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "transcribe:GetTranscriptionJob"
+        ]
+        Resource = "arn:aws:transcribe:${var.region}:${data.aws_caller_identity.this.account_id}:transcription-job/*"
+      }
+    ]
+  })
 }

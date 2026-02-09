@@ -47,8 +47,6 @@ module "transcribe" {
                 "s3:PutObject",
                 "s3:GetObject",
                 "s3:ListBucket",
-                "transcribe:GetTranscriptionJob",
-                "transcribe:TagResource",
                 "sqs:ReceiveMessage",
                 "sqs:DeleteMessage",
                 "sqs:GetQueueAttributes"
@@ -65,9 +63,11 @@ module "transcribe" {
             "Sid": "VisualEditor2",
             "Effect": "Allow",
             "Action": [
+                "transcribe:GetTranscriptionJob",
+                "transcribe:TagResource",
                 "transcribe:StartTranscriptionJob"
             ],
-            "Resource": "*"
+            "Resource": "arn:aws:transcribe:${var.region}:${data.aws_caller_identity.this.account_id}:transcription-job/*"
         }
     ]
   }
