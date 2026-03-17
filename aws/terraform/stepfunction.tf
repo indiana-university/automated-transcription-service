@@ -31,16 +31,14 @@ module "step_function" {
       },
       "AssignTags": {
         "Type": "Pass",
-        "Assign": {
-          "tags.$": "$.transcribe.TranscriptionJob.Tags"
-        },
+        "InputPath": "$.transcribe.TranscriptionJob.Tags",
+        "ResultPath": "$.tags",
         "Next": "Tagged?"
       },
       "AssignNoTags": {
         "Type": "Pass",
-        "Assign": {
-          "tags": []
-        },
+        "Result": [],
+        "ResultPath": "$.tags",
         "Next": "Tagged?"
       },
       "Tagged?": {
@@ -49,11 +47,11 @@ module "step_function" {
           {
             "And": [
               {
-                "Variable": "$tags[0].Value",
+                "Variable": "$.tags[0].Value",
                 "IsPresent": true
               },
               {
-                "Variable": "$tags[0].Value",
+                "Variable": "$.tags[0].Value",
                 "StringEquals": "${var.prefix}"
               }
             ],
