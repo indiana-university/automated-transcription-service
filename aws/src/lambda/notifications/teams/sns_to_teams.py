@@ -39,8 +39,35 @@ def lambda_handler(event, context):
 
     job_name = body.get("job", "Unknown Job")
     s3uri = body.get("s3uri", "No S3 URI provided")
-    teams_message = f"Job Name:<br><pre>{job_name}</pre><br>Transcript available at:<br><pre>{s3uri}</pre>"
-    message = {"summary": title, "sections": [{"activityTitle": title, "activitySubtitle": teams_message}]}
+    message = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": None,
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "size": "Medium",
+                            "weight": "Bolder",
+                            "text": title,
+                        },
+                        {
+                            "type": "FactSet",
+                            "facts": [
+                                {"title": "Job Name", "value": job_name},
+                                {"title": "Transcript S3 URI", "value": s3uri},
+                            ],
+                        },
+                    ],
+                },
+            }
+        ],
+    }
     request_data = json.dumps(message).encode("utf-8")
     req = Request(url=webhook, headers={"Content-Type": "application/json"}, data=request_data, method='POST')
 
