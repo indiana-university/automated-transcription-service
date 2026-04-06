@@ -1,5 +1,5 @@
-# Python version
-ARG PYTHON_VERSION=3.11
+# Python version passed via build_args in lambda.tf
+ARG PYTHON_VERSION
 
 # Define custom function directory
 ARG FUNCTION_DIR="/function"
@@ -8,9 +8,6 @@ FROM python:${PYTHON_VERSION} AS build-image
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR
-
-# Create a non-root user for building
-RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Copy function code
 RUN  mkdir -p ${FUNCTION_DIR}
@@ -21,24 +18,23 @@ COPY requirements.txt  .
 RUN  pip install --target ${FUNCTION_DIR} awslambdaric
 RUN  pip install -r requirements.txt --target ${FUNCTION_DIR}
 
-# Change ownership of the function directory to the non-root user
-RUN chown -R appuser:appuser ${FUNCTION_DIR}
-
-# Use a distroless Python image to reduce the final image size
-FROM gcr.io/distroless/python3:nonroot
+# Use slim Python image to minimize size and attack surface
+FROM python:${PYTHON_VERSION}-slim
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR
 
-# Set working directory to function root directory
+# Create a non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
 WORKDIR ${FUNCTION_DIR}
 
-# Copy in the built dependencies with proper ownership
-COPY --from=build-image --chown=nonroot:nonroot ${FUNCTION_DIR} ${FUNCTION_DIR}
+# Copy in the built dependencies from build stage
+COPY --from=build-image --chown=appuser:appuser ${FUNCTION_DIR} ${FUNCTION_DIR}
 
-# Switch to non-root user
-USER nonroot
+# Run as non-root user
+USER appuser
 
-# Set runtime interface client as default command for the container runtime
-#CMD [ "-m", "awslambdaric" ]
-ENTRYPOINT [ "/usr/bin/python3", "-m", "awslambdaric" ]
+# Set the entry point for the Lambda function
+ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
