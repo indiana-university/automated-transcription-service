@@ -7,8 +7,63 @@ module "step_function" {
   definition = <<EOF
   {
     "Comment": "Step function to perform post-processing on Transcriptions.",
-    "StartAt": "Transcribed?",
+    "StartAt": "GetTranscriptionJob",
     "States": {
+      "GetTranscriptionJob": {
+        "Type": "Task",
+        "Parameters": {
+          "TranscriptionJobName.$": "$.detail.TranscriptionJobName"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
+        "Next": "HasTags?",
+        "ResultPath": "$.transcribe"
+      },
+      "HasTags?": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.transcribe.TranscriptionJob.Tags",
+            "IsPresent": true,
+            "Next": "AssignTags"
+          }
+        ],
+        "Default": "AssignNoTags"
+      },
+      "AssignTags": {
+        "Type": "Pass",
+        "InputPath": "$.transcribe.TranscriptionJob.Tags",
+        "ResultPath": "$.tags",
+        "Next": "Tagged?"
+      },
+      "AssignNoTags": {
+        "Type": "Pass",
+        "Result": [],
+        "ResultPath": "$.tags",
+        "Next": "Tagged?"
+      },
+      "Tagged?": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "And": [
+              {
+                "Variable": "$.tags[0].Value",
+                "IsPresent": true
+              },
+              {
+                "Variable": "$.tags[0].Value",
+                "StringEquals": "${var.prefix}"
+              }
+            ],
+            "Next": "Transcribed?"
+          }
+        ],
+        "Default": "Untagged"
+      },
+      "Untagged": {
+        "Type": "Pass",
+        "End": true
+      },
       "Transcribed?": {
         "Comment": "Check to see if Transcribe job completed.",
         "Type": "Choice",
@@ -139,4 +194,21 @@ module "step_function" {
   tags = {
     Project = "ATS"
   }
+}
+
+resource "aws_iam_role_policy" "transcribe" {
+  name   = "${var.prefix}-step-function-transcribe"
+  role   = module.step_function.role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "transcribe:GetTranscriptionJob"
+        ]
+        Resource = "arn:aws:transcribe:${var.region}:${data.aws_caller_identity.this.account_id}:transcription-job/*"
+      }
+    ]
+  })
 }

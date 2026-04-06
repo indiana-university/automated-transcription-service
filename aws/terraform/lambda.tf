@@ -32,6 +32,7 @@ module "transcribe" {
   environment_variables = {
     LOG_LEVEL = "INFO"
     BUCKET    = aws_s3_bucket.download.id
+    TAG       = var.prefix
   }
 
   attach_policy_json = true
@@ -46,7 +47,6 @@ module "transcribe" {
                 "s3:PutObject",
                 "s3:GetObject",
                 "s3:ListBucket",
-                "transcribe:GetTranscriptionJob",
                 "sqs:ReceiveMessage",
                 "sqs:DeleteMessage",
                 "sqs:GetQueueAttributes"
@@ -63,9 +63,11 @@ module "transcribe" {
             "Sid": "VisualEditor2",
             "Effect": "Allow",
             "Action": [
+                "transcribe:GetTranscriptionJob",
+                "transcribe:TagResource",
                 "transcribe:StartTranscriptionJob"
             ],
-            "Resource": "*"
+            "Resource": "arn:aws:transcribe:${var.region}:${data.aws_caller_identity.this.account_id}:transcription-job/*"
         }
     ]
   }
