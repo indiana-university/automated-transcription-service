@@ -39,6 +39,11 @@ def lambda_handler(event, context):
 
     job_name = body.get("job", "Unknown Job")
     s3uri = body.get("s3uri", "No S3 URI provided")
+    title_lower = title.lower()
+    if "fail" in title_lower or "stop" in title_lower or "error" in title_lower:
+        header_style = "attention"
+    else:
+        header_style = "good"
     message = {
         "type": "message",
         "attachments": [
@@ -49,12 +54,21 @@ def lambda_handler(event, context):
                     "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                     "type": "AdaptiveCard",
                     "version": "1.4",
+                    "msteams": {"width": "Full"},
                     "body": [
                         {
-                            "type": "TextBlock",
-                            "size": "Medium",
-                            "weight": "Bolder",
-                            "text": title,
+                            "type": "Container",
+                            "style": header_style,
+                            "bleed": True,
+                            "items": [
+                                {
+                                    "type": "TextBlock",
+                                    "size": "Medium",
+                                    "weight": "Bolder",
+                                    "text": title,
+                                    "wrap": True,
+                                },
+                            ],
                         },
                         {
                             "type": "FactSet",
