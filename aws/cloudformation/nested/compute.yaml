@@ -1,0 +1,369 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ATS Lambda functions — audio-to-transcribe, transcribe-to-docx, export-jobs,
+  and optional Teams/Slack notification functions.
+
+  The transcribe-to-docx function was originally deployed as a Docker container image.
+  It is now packaged as a standard zip deployment. Run `sam build --use-container`
+  to build dependencies in a Lambda-compatible environment (required for lxml).
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: ats
+
+  LambdaTs:
+    Type: String
+    Default: audio-to-transcribe
+
+  LambdaDocx:
+    Type: String
+    Default: transcribe-to-docx
+
+  PythonVersion:
+    Type: String
+    Default: '3.13'
+    Description: Python runtime version (e.g. 3.13)
+
+  Mpl:
+    Type: String
+    Default: /tmp
+    Description: MPLCONFIGDIR environment variable for the docx Lambda
+
+  DocxTimeout:
+    Type: Number
+    Default: 300000
+    Description: >
+      Timeout threshold in milliseconds passed to the docx Lambda as an
+      environment variable (not the Lambda execution timeout, which is 900 s).
+
+  ConfidenceScore:
+    Type: Number
+    Default: 90
+    Description: Lower confidence threshold (50–100) below which words are highlighted
+
+  DocxMaxDuration:
+    Type: Number
+    Default: 13150
+    Description: Max transcription duration (seconds) the docx Lambda will process
+
+  DocumentTitle:
+    Type: String
+    Default: Transcription Results
+    Description: Title placed in the header of generated DOCX files
+
+  UploadQueueArn:
+    Type: String
+    Description: ARN of the SQS queue that triggers the transcribe Lambda
+
+  DownloadBucketName:
+    Type: String
+    Description: Name of the download S3 bucket
+
+  DownloadBucketArn:
+    Type: String
+    Description: ARN of the download S3 bucket
+
+  UploadBucketArn:
+    Type: String
+    Description: ARN of the upload S3 bucket
+
+  DynamoDBTableName:
+    Type: String
+    Description: DynamoDB table name for job tracking
+
+  DynamoDBTableArn:
+    Type: String
+    Description: DynamoDB table ARN
+
+  SnsTopicArn:
+    Type: String
+    Description: ARN of the SNS notifications topic
+
+  TeamsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+  SlackEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+  TeamsSecretArn:
+    Type: String
+    Default: ''
+    Description: ARN of the Teams webhook Secrets Manager secret (empty if disabled)
+
+  SlackSecretArn:
+    Type: String
+    Default: ''
+    Description: ARN of the Slack webhook Secrets Manager secret (empty if disabled)
+
+Conditions:
+  TeamsEnabled: !Equals [!Ref TeamsEnabled, 'true']
+  SlackEnabled: !Equals [!Ref SlackEnabled, 'true']
+
+Globals:
+  Function:
+    Tags:
+      Project: ATS
+
+Resources:
+
+  # ── audio-to-transcribe ────────────────────────────────────────────────────────
+  # Picks audio files from the SQS queue and starts AWS Transcribe jobs.
+  TranscribeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Prefix}-${LambdaTs}"
+      Handler: audio_to_transcribe.lambda_handler
+      Runtime: !Sub "python${PythonVersion}"
+      CodeUri: ../../src/lambda/transcribe/
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+          BUCKET: !Ref DownloadBucketName
+          TAG: !Ref Prefix
+      Events:
+        SQSTrigger:
+          Type: SQS
+          Properties:
+            Queue: !Ref UploadQueueArn
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+      Policies:
+        - Statement:
+            - Sid: S3Access
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Ref DownloadBucketArn
+                - !Sub "${DownloadBucketArn}/*"
+                - !Ref UploadBucketArn
+                - !Sub "${UploadBucketArn}/*"
+            - Sid: SQSAccess
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !Ref UploadQueueArn
+            - Sid: TranscribeAccess
+              Effect: Allow
+              Action:
+                - transcribe:GetTranscriptionJob
+                - transcribe:TagResource
+                - transcribe:StartTranscriptionJob
+              Resource: !Sub "arn:aws:transcribe:${AWS::Region}:${AWS::AccountId}:transcription-job/*"
+
+  # ── transcribe-to-docx ────────────────────────────────────────────────────────
+  # Converts completed Transcribe JSON output to formatted DOCX documents.
+  # Originally deployed as a Docker container image; now packaged as a zip.
+  # Build with: sam build --use-container  (ensures lxml compiles for Lambda)
+  DocxFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Prefix}-${LambdaDocx}"
+      Description: Postprocessing for transcribe jobs
+      Handler: transcribe_to_docx.lambda_handler
+      Runtime: !Sub "python${PythonVersion}"
+      CodeUri: ../../src/lambda/docx/
+      Timeout: 900
+      MemorySize: 2048
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          MPLCONFIGDIR: !Ref Mpl
+          BUCKET: !Ref DownloadBucketName
+          TIMEOUT: !Ref DocxTimeout
+          CONFIDENCE: !Ref ConfidenceScore
+          DOCX_MAX_DURATION: !Ref DocxMaxDuration
+          DOCUMENT_TITLE: !Ref DocumentTitle
+      Policies:
+        - Statement:
+            - Sid: S3Access
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:DeleteObject
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Ref DownloadBucketArn
+                - !Sub "${DownloadBucketArn}/*"
+                - !Ref UploadBucketArn
+                - !Sub "${UploadBucketArn}/*"
+            - Sid: TranscribeGetJob
+              Effect: Allow
+              Action: transcribe:GetTranscriptionJob
+              Resource: !Sub "arn:aws:transcribe:*:${AWS::AccountId}:transcription-job/*"
+            - Sid: TranscribeListJobs
+              Effect: Allow
+              Action: transcribe:ListTranscriptionJobs
+              Resource: '*'
+
+  # ── export-jobs ───────────────────────────────────────────────────────────────
+  # Queries DynamoDB for completed jobs and writes a CSV export to S3.
+  ExportJobsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Prefix}-export-jobs"
+      Handler: export_jobs.lambda_handler
+      Runtime: !Sub "python${PythonVersion}"
+      CodeUri: ../../src/lambda/export/
+      Timeout: 300
+      Environment:
+        Variables:
+          DOWNLOAD_BUCKET: !Ref DownloadBucketName
+          DYNAMODB_TABLE: !Ref DynamoDBTableName
+      Policies:
+        - Statement:
+            - Sid: QueryDynamoDB
+              Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Ref DynamoDBTableArn
+            - Sid: WriteToS3
+              Effect: Allow
+              Action: s3:PutObject
+              Resource: !Sub "${DownloadBucketArn}/*"
+
+  # ── teams-notification (conditional) ─────────────────────────────────────────
+  # SNS subscriber that forwards notifications to a Microsoft Teams channel.
+  TeamsNotificationFunction:
+    Type: AWS::Serverless::Function
+    Condition: TeamsEnabled
+    Properties:
+      FunctionName: !Sub "${Prefix}-teams-notification"
+      Handler: sns_to_teams.lambda_handler
+      Runtime: !Sub "python${PythonVersion}"
+      CodeUri: ../../src/lambda/notifications/teams/
+      Timeout: 15
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+          WEBHOOK_SECRET_ARN: !Ref TeamsSecretArn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: logs:CreateLogGroup
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${Prefix}-teams-notification:*"
+            - Sid: SNSReadOnlyAccess
+              Effect: Allow
+              Action:
+                - sns:GetTopicAttributes
+                - sns:List*
+                - sns:CheckIfPhoneNumberIsOptedOut
+                - sns:GetEndpointAttributes
+                - sns:GetDataProtectionPolicy
+                - sns:GetPlatformApplicationAttributes
+                - sns:GetSMSAttributes
+                - sns:GetSMSSandboxAccountStatus
+                - sns:GetSubscriptionAttributes
+              Resource: !Ref SnsTopicArn
+            - Sid: SecretsManagerAccess
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref TeamsSecretArn
+
+  TeamsNotificationPermission:
+    Type: AWS::Lambda::Permission
+    Condition: TeamsEnabled
+    Properties:
+      FunctionName: !GetAtt TeamsNotificationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref SnsTopicArn
+
+  TeamsNotificationSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: TeamsEnabled
+    Properties:
+      TopicArn: !Ref SnsTopicArn
+      Protocol: lambda
+      Endpoint: !GetAtt TeamsNotificationFunction.Arn
+
+  # ── slack-notification (conditional) ─────────────────────────────────────────
+  # SNS subscriber that forwards notifications to a Slack channel.
+  SlackNotificationFunction:
+    Type: AWS::Serverless::Function
+    Condition: SlackEnabled
+    Properties:
+      FunctionName: !Sub "${Prefix}-slack-notification"
+      Handler: sns_to_slack.lambda_handler
+      Runtime: !Sub "python${PythonVersion}"
+      CodeUri: ../../src/lambda/notifications/slack/
+      Timeout: 15
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+          WEBHOOK_SECRET_ARN: !Ref SlackSecretArn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: logs:CreateLogGroup
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${Prefix}-slack-notification:*"
+            - Sid: SNSReadOnlyAccess
+              Effect: Allow
+              Action:
+                - sns:GetTopicAttributes
+                - sns:List*
+                - sns:CheckIfPhoneNumberIsOptedOut
+                - sns:GetEndpointAttributes
+                - sns:GetDataProtectionPolicy
+                - sns:GetPlatformApplicationAttributes
+                - sns:GetSMSAttributes
+                - sns:GetSMSSandboxAccountStatus
+                - sns:GetSubscriptionAttributes
+              Resource: !Ref SnsTopicArn
+            - Sid: SecretsManagerAccess
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref SlackSecretArn
+
+  SlackNotificationPermission:
+    Type: AWS::Lambda::Permission
+    Condition: SlackEnabled
+    Properties:
+      FunctionName: !GetAtt SlackNotificationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref SnsTopicArn
+
+  SlackNotificationSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: SlackEnabled
+    Properties:
+      TopicArn: !Ref SnsTopicArn
+      Protocol: lambda
+      Endpoint: !GetAtt SlackNotificationFunction.Arn
+
+Outputs:
+  DocxFunctionArn:
+    Description: ARN of the transcribe-to-docx Lambda function
+    Value: !GetAtt DocxFunction.Arn
+
+  TranscribeFunctionArn:
+    Description: ARN of the audio-to-transcribe Lambda function
+    Value: !GetAtt TranscribeFunction.Arn
+
+  ExportJobsFunctionArn:
+    Description: ARN of the export-jobs Lambda function
+    Value: !GetAtt ExportJobsFunction.Arn

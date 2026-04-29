@@ -1,0 +1,291 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Automated Transcription Service (ATS) — root CloudFormation template.
+  Orchestrates all nested stacks: storage, queues, database, notifications,
+  secrets, compute (Lambda), and orchestration (Step Functions + EventBridge).
+
+# ── Parameter grouping for the AWS Console ────────────────────────────────────
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General
+        Parameters:
+          - Prefix
+          - PythonVersion
+      - Label:
+          default: Storage
+        Parameters:
+          - RetentionDays
+      - Label:
+          default: Lambda — transcribe-to-docx
+        Parameters:
+          - LambdaDocx
+          - Mpl
+          - DocxTimeout
+          - ConfidenceScore
+          - DocxMaxDuration
+          - DocumentTitle
+      - Label:
+          default: Lambda — audio-to-transcribe
+        Parameters:
+          - LambdaTs
+      - Label:
+          default: Notifications — Teams
+        Parameters:
+          - TeamsNotification
+          - TeamsWebhook
+      - Label:
+          default: Notifications — Slack
+        Parameters:
+          - SlackNotification
+          - SlackWebhook
+    ParameterLabels:
+      Prefix:
+        default: Resource name prefix
+      PythonVersion:
+        default: Python runtime version
+      RetentionDays:
+        default: S3 object retention (days)
+      LambdaDocx:
+        default: transcribe-to-docx function name stem
+      LambdaTs:
+        default: audio-to-transcribe function name stem
+      Mpl:
+        default: Matplotlib config directory
+      DocxTimeout:
+        default: DOCX processing timeout (ms)
+      ConfidenceScore:
+        default: Confidence highlight threshold (%)
+      DocxMaxDuration:
+        default: Max transcription duration (s)
+      DocumentTitle:
+        default: DOCX header title
+      TeamsNotification:
+        default: Enable Teams notifications
+      TeamsWebhook:
+        default: Teams incoming webhook URL
+      SlackNotification:
+        default: Enable Slack notifications
+      SlackWebhook:
+        default: Slack incoming webhook URL
+
+# ── Parameters ────────────────────────────────────────────────────────────────
+Parameters:
+  Prefix:
+    Type: String
+    Default: ats
+    Description: >
+      Short prefix applied to all resource names (e.g. S3 bucket names, Lambda
+      function names). Keep it short and lowercase.
+
+  PythonVersion:
+    Type: String
+    Default: '3.13'
+    AllowedValues:
+      - '3.12'
+      - '3.13'
+    Description: Python runtime version for all Lambda functions.
+
+  RetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Number of days before objects in the upload and download buckets expire.
+
+  LambdaDocx:
+    Type: String
+    Default: transcribe-to-docx
+    Description: Name stem for the transcribe-to-docx Lambda function.
+
+  LambdaTs:
+    Type: String
+    Default: audio-to-transcribe
+    Description: Name stem for the audio-to-transcribe Lambda function.
+
+  Mpl:
+    Type: String
+    Default: /tmp
+    Description: >
+      MPLCONFIGDIR environment variable for the transcribe-to-docx Lambda.
+      /tmp is writable inside Lambda; do not change unless you have a reason.
+
+  DocxTimeout:
+    Type: Number
+    Default: 300000
+    Description: >
+      Timeout threshold in milliseconds passed to the transcribe-to-docx Lambda
+      as the TIMEOUT environment variable. This is NOT the Lambda execution
+      timeout (which is fixed at 900 s); it controls an internal processing limit.
+
+  ConfidenceScore:
+    Type: Number
+    Default: 90
+    MinValue: 50
+    MaxValue: 100
+    Description: >
+      Lower confidence threshold (50–100). Words with a confidence score below
+      this value are highlighted in the generated DOCX.
+
+  DocxMaxDuration:
+    Type: Number
+    Default: 13150
+    Description: >
+      Maximum transcription duration in seconds that the transcribe-to-docx
+      Lambda will process before issuing a failure.
+
+  DocumentTitle:
+    Type: String
+    Default: Transcription Results
+    Description: Title placed in the header of generated DOCX files.
+
+  TeamsNotification:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Set to true to create the Teams notification Lambda and SNS subscription.
+
+  TeamsWebhook:
+    Type: String
+    Default: DISABLED
+    NoEcho: true
+    Description: >
+      Microsoft Teams incoming webhook URL. Required when TeamsNotification is true.
+      Stored in AWS Secrets Manager; never appears in CloudFormation outputs or logs.
+
+  SlackNotification:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Set to true to create the Slack notification Lambda and SNS subscription.
+
+  SlackWebhook:
+    Type: String
+    Default: DISABLED
+    NoEcho: true
+    Description: >
+      Slack incoming webhook URL. Required when SlackNotification is true.
+      Stored in AWS Secrets Manager; never appears in CloudFormation outputs or logs.
+
+# ── Conditions ────────────────────────────────────────────────────────────────
+Conditions:
+  TeamsEnabled: !Equals [!Ref TeamsNotification, 'true']
+  SlackEnabled: !Equals [!Ref SlackNotification, 'true']
+
+# ── Nested stacks ─────────────────────────────────────────────────────────────
+Resources:
+
+  # 1. SQS queues (created first; storage stack references the queue ARN)
+  QueuesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: nested/queues.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+        LambdaTs: !Ref LambdaTs
+        # The upload bucket ARN is deterministic — we can construct it before
+        # the bucket exists, breaking the circular S3↔SQS dependency.
+        UploadBucketArn: !Sub "arn:aws:s3:::${Prefix}-upload-${AWS::AccountId}-${AWS::Region}"
+
+  # 2. S3 buckets (references queue ARN from step 1 for event notification)
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: QueuesStack
+    Properties:
+      TemplateURL: nested/storage.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+        RetentionDays: !Ref RetentionDays
+        UploadQueueArn: !GetAtt QueuesStack.Outputs.QueueArn
+
+  # 3. DynamoDB (no dependencies)
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: nested/database.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+
+  # 4. SNS topic (no dependencies)
+  NotificationsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: nested/notifications.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+
+  # 5. Secrets Manager (conditional; no other dependencies)
+  SecretsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: nested/secrets.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+        TeamsEnabled: !Ref TeamsNotification
+        SlackEnabled: !Ref SlackNotification
+        TeamsWebhook: !Ref TeamsWebhook
+        SlackWebhook: !Ref SlackWebhook
+
+  # 6. Lambda functions (depends on storage, queues, database, notifications, secrets)
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - StorageStack
+      - QueuesStack
+      - DatabaseStack
+      - NotificationsStack
+      - SecretsStack
+    Properties:
+      TemplateURL: nested/compute.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+        LambdaTs: !Ref LambdaTs
+        LambdaDocx: !Ref LambdaDocx
+        PythonVersion: !Ref PythonVersion
+        Mpl: !Ref Mpl
+        DocxTimeout: !Ref DocxTimeout
+        ConfidenceScore: !Ref ConfidenceScore
+        DocxMaxDuration: !Ref DocxMaxDuration
+        DocumentTitle: !Ref DocumentTitle
+        UploadQueueArn: !GetAtt QueuesStack.Outputs.QueueArn
+        DownloadBucketName: !GetAtt StorageStack.Outputs.DownloadBucketName
+        DownloadBucketArn: !GetAtt StorageStack.Outputs.DownloadBucketArn
+        UploadBucketArn: !GetAtt StorageStack.Outputs.UploadBucketArn
+        DynamoDBTableName: !GetAtt DatabaseStack.Outputs.TableName
+        DynamoDBTableArn: !GetAtt DatabaseStack.Outputs.TableArn
+        SnsTopicArn: !GetAtt NotificationsStack.Outputs.TopicArn
+        TeamsEnabled: !Ref TeamsNotification
+        SlackEnabled: !Ref SlackNotification
+        TeamsSecretArn: !GetAtt SecretsStack.Outputs.TeamsSecretArn
+        SlackSecretArn: !GetAtt SecretsStack.Outputs.SlackSecretArn
+
+  # 7. Step Functions + EventBridge (depends on compute and notifications)
+  OrchestrationStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - ComputeStack
+      - NotificationsStack
+    Properties:
+      TemplateURL: nested/orchestration.yaml
+      Parameters:
+        Prefix: !Ref Prefix
+        DocxFunctionArn: !GetAtt ComputeStack.Outputs.DocxFunctionArn
+        SnsTopicArn: !GetAtt NotificationsStack.Outputs.TopicArn
+        DynamoDBTableName: !GetAtt DatabaseStack.Outputs.TableName
+        DynamoDBTableArn: !GetAtt DatabaseStack.Outputs.TableArn
+
+# ── Outputs ───────────────────────────────────────────────────────────────────
+Outputs:
+  UploadBucketName:
+    Description: >
+      Upload audio files to this S3 bucket to trigger transcription.
+      Example: aws s3 cp my-audio.ogg s3://<UploadBucketName>/
+    Value: !GetAtt StorageStack.Outputs.UploadBucketName
+
+  DownloadBucketName:
+    Description: Transcription output (DOCX files) is written to this S3 bucket.
+    Value: !GetAtt StorageStack.Outputs.DownloadBucketName
+
+  DynamoDBTableName:
+    Description: DynamoDB table that records completed transcription jobs.
+    Value: !GetAtt DatabaseStack.Outputs.TableName

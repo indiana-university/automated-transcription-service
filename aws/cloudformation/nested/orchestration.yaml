@@ -1,0 +1,281 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ATS orchestration — Step Functions state machine for post-processing
+  and the EventBridge rule that triggers it when a Transcribe job ends.
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: ats
+    Description: Prefix used for resource naming
+
+  DocxFunctionArn:
+    Type: String
+    Description: ARN of the transcribe-to-docx Lambda function
+
+  SnsTopicArn:
+    Type: String
+    Description: ARN of the ATS notifications SNS topic
+
+  DynamoDBTableName:
+    Type: String
+    Description: DynamoDB table name for job tracking
+
+  DynamoDBTableArn:
+    Type: String
+    Description: DynamoDB table ARN
+
+Resources:
+
+  # ── Step Functions IAM role ───────────────────────────────────────────────────
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-step-functions-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${Prefix}-step-functions-policy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: InvokeLambda
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Ref DocxFunctionArn
+              - Sid: PublishSNS
+                Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref SnsTopicArn
+              - Sid: DynamoDBPutItem
+                Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !Ref DynamoDBTableArn
+              - Sid: TranscribeGetJob
+                Effect: Allow
+                Action: transcribe:GetTranscriptionJob
+                Resource: !Sub "arn:aws:transcribe:${AWS::Region}:${AWS::AccountId}:transcription-job/*"
+
+  # ── Step Functions state machine ───────────────────────────────────────────────
+  PostprocessingStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub "${Prefix}-postprocessing"
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      # The state machine definition is embedded as a !Sub block scalar.
+      # CloudFormation substitutes ${Prefix}, ${DocxFunctionArn}, ${SnsTopicArn},
+      # and ${DynamoDBTableName}. ASL dollar-signs (e.g. $.detail) are NOT
+      # substituted because they do not follow the ${...} pattern.
+      DefinitionString: !Sub |
+        {
+          "Comment": "Step function to perform post-processing on Transcriptions.",
+          "StartAt": "GetTranscriptionJob",
+          "States": {
+            "GetTranscriptionJob": {
+              "Type": "Task",
+              "Parameters": {
+                "TranscriptionJobName.$": "$.detail.TranscriptionJobName"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
+              "Next": "HasTags?",
+              "ResultPath": "$.transcribe"
+            },
+            "HasTags?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.transcribe.TranscriptionJob.Tags",
+                  "IsPresent": true,
+                  "Next": "AssignTags"
+                }
+              ],
+              "Default": "AssignNoTags"
+            },
+            "AssignTags": {
+              "Type": "Pass",
+              "InputPath": "$.transcribe.TranscriptionJob.Tags",
+              "ResultPath": "$.tags",
+              "Next": "Tagged?"
+            },
+            "AssignNoTags": {
+              "Type": "Pass",
+              "Result": [],
+              "ResultPath": "$.tags",
+              "Next": "Tagged?"
+            },
+            "Tagged?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "And": [
+                    {
+                      "Variable": "$.tags[0].Value",
+                      "IsPresent": true
+                    },
+                    {
+                      "Variable": "$.tags[0].Value",
+                      "StringEquals": "${Prefix}"
+                    }
+                  ],
+                  "Next": "Transcribed?"
+                }
+              ],
+              "Default": "Untagged"
+            },
+            "Untagged": {
+              "Type": "Pass",
+              "End": true
+            },
+            "Transcribed?": {
+              "Comment": "Check to see if Transcribe job completed.",
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.detail.TranscriptionJobStatus",
+                  "StringEquals": "COMPLETED",
+                  "Next": "Create DOCX"
+                }
+              ],
+              "Default": "Transcribe failed notification"
+            },
+            "Transcribe failed notification": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "Message": "Transcribe job failed. See CloudWatch logs for details.",
+                "TopicArn": "${SnsTopicArn}"
+              },
+              "Next": "ERROR"
+            },
+            "Create DOCX": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${DocxFunctionArn}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "ATS Notification"
+            },
+            "ATS Notification": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:sns:publish",
+              "Parameters": {
+                "TopicArn": "${SnsTopicArn}",
+                "Subject.$": "$.body.subject",
+                "MessageStructure": "json",
+                "Message": {
+                  "default": "States.Format('Transcription job {} completed. Transcript available at {}', $.body.job_name, $.body.s3uri)",
+                  "lambda.$": "States.JsonToString($.body)"
+                }
+              },
+              "Next": "Choice",
+              "InputPath": "$.Payload",
+              "ResultPath": null
+            },
+            "Choice": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.Payload.statusCode",
+                  "NumericEquals": 200,
+                  "Next": "DynamoDB PutItem"
+                }
+              ],
+              "Default": "ERROR"
+            },
+            "DynamoDB PutItem": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::dynamodb:putItem",
+              "Parameters": {
+                "TableName": "${DynamoDBTableName}",
+                "Item": {
+                  "PK": { "S": "jobs" },
+                  "SK": { "S.$": "$.body.job" },
+                  "Languages": { "S.$": "$.body.languages" },
+                  "TotalDuration": {
+                    "N.$": "States.Format('{}',$.body.duration)"
+                  },
+                  "Confidence": { "N.$": "$.body.confidence" },
+                  "Created": { "S.$": "$.body.created" }
+                }
+              },
+              "Next": "COMPLETED",
+              "InputPath": "$.Payload"
+            },
+            "ERROR": {
+              "Type": "Fail"
+            },
+            "COMPLETED": {
+              "Type": "Succeed"
+            }
+          }
+        }
+
+  # ── EventBridge IAM role ───────────────────────────────────────────────────────
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Prefix}-eventbridge-stepfunction-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${Prefix}-eventbridge-stepfunction-policy"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref PostprocessingStateMachine
+
+  # ── EventBridge rule ──────────────────────────────────────────────────────────
+  TranscribeJobRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${Prefix}-capture-transcribe-job-end"
+      Description: Capture when a Transcribe job ends (COMPLETED or FAILED)
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.transcribe
+        detail-type:
+          - Transcribe Job State Change
+        detail:
+          TranscriptionJobStatus:
+            - COMPLETED
+            - FAILED
+      Targets:
+        - Id: trigger-ats-postprocessing
+          Arn: !Ref PostprocessingStateMachine
+          RoleArn: !GetAtt EventBridgeRole.Arn
+
+Outputs:
+  StateMachineArn:
+    Description: ARN of the ATS postprocessing Step Functions state machine
+    Value: !Ref PostprocessingStateMachine
+
+  StateMachineName:
+    Description: Name of the ATS postprocessing Step Functions state machine
+    Value: !GetAtt PostprocessingStateMachine.Name

@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ATS DynamoDB table for transcription job tracking.
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: ats
+    Description: Prefix used for resource naming
+
+Resources:
+
+  JobsTable:
+    Type: AWS::DynamoDB::Table
+    # Retain the table on stack deletion to prevent accidental data loss.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${Prefix}-jobs-table"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: ATS
+
+Outputs:
+  TableName:
+    Description: DynamoDB table name
+    Value: !Ref JobsTable
+
+  TableArn:
+    Description: DynamoDB table ARN
+    Value: !GetAtt JobsTable.Arn

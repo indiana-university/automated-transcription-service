@@ -1,0 +1,54 @@
+# AWS SAM deployment configuration template for ATS
+#
+# Usage:
+#   1. Copy this file:  cp samconfig.toml.template samconfig.toml
+#   2. Fill in the required values (marked with TODO).
+#   3. Run:  sam build --use-container
+#            sam deploy
+#
+# The --use-container flag is required for the transcribe-to-docx Lambda,
+# which uses lxml (a C extension that must be compiled for the Lambda runtime).
+
+version = 0.1
+
+[default.global.parameters]
+stack_name = "ats"
+
+[default.build.parameters]
+# Build all Lambda functions inside Lambda-compatible Docker containers.
+# This is required for the transcribe-to-docx function (lxml dependency).
+use_container = true
+
+[default.deploy.parameters]
+# TODO: Set your target AWS region.
+region = "us-east-1"
+
+# TODO: Set the S3 bucket used to stage nested templates and Lambda packages.
+# If you do not have one, use --resolve-s3 on the command line to let SAM
+# create and manage one automatically:
+#   sam deploy --resolve-s3
+s3_bucket = ""
+
+# TODO: Set a prefix to keep your deployment artifacts organised in S3.
+s3_prefix = "ats"
+
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+confirm_changeset = true
+
+# Override any parameter default here. Remove lines you don't need to change.
+parameter_overrides = """
+  Prefix=ats
+  PythonVersion=3.13
+  RetentionDays=30
+  LambdaTs=audio-to-transcribe
+  LambdaDocx=transcribe-to-docx
+  Mpl=/tmp
+  DocxTimeout=300000
+  ConfidenceScore=90
+  DocxMaxDuration=13150
+  DocumentTitle=Transcription Results
+  TeamsNotification=false
+  TeamsWebhook=DISABLED
+  SlackNotification=false
+  SlackWebhook=DISABLED
+"""

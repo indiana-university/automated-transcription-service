@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ATS S3 storage — upload bucket (with SQS event notification) and download bucket.
+  Both buckets use deterministic names derived from the stack parameters, account ID,
+  and region to ensure global uniqueness without random suffixes.
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: ats
+    Description: Prefix used for bucket naming (e.g. "ats")
+
+  RetentionDays:
+    Type: Number
+    Default: 30
+    Description: Number of days before objects in both buckets expire
+
+  UploadQueueArn:
+    Type: String
+    Description: ARN of the SQS queue that receives S3 upload events
+
+Resources:
+
+  # ── Download bucket ────────────────────────────────────────────────────────────
+  DownloadBucket:
+    Type: AWS::S3::Bucket
+    # Retain on stack deletion to prevent accidental loss of transcription output.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${Prefix}-download-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: !Sub "${Prefix}-download-lifecycle-expire"
+            Status: Enabled
+            ExpirationInDays: !Ref RetentionDays
+
+  # ── Upload bucket ──────────────────────────────────────────────────────────────
+  UploadBucket:
+    Type: AWS::S3::Bucket
+    # Retain on stack deletion to prevent accidental loss of source audio files.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${Prefix}-upload-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: !Sub "${Prefix}-upload-lifecycle-expire"
+            Status: Enabled
+            ExpirationInDays: !Ref RetentionDays
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Queue: !Ref UploadQueueArn
+
+Outputs:
+  UploadBucketName:
+    Description: Name of the upload S3 bucket
+    Value: !Ref UploadBucket
+
+  UploadBucketArn:
+    Description: ARN of the upload S3 bucket
+    Value: !GetAtt UploadBucket.Arn
+
+  DownloadBucketName:
+    Description: Name of the download S3 bucket
+    Value: !Ref DownloadBucket
+
+  DownloadBucketArn:
+    Description: ARN of the download S3 bucket
+    Value: !GetAtt DownloadBucket.Arn

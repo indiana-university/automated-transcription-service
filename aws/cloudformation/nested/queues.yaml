@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ATS SQS queues — upload queue, dead-letter queue, and queue policies.
+  The queue policy uses a deterministic upload bucket ARN (derived from
+  known naming parameters) to avoid a circular dependency with the storage stack.
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: ats
+    Description: Prefix used for resource naming
+
+  LambdaTs:
+    Type: String
+    Default: audio-to-transcribe
+    Description: Name stem for the audio-to-transcribe Lambda (used in queue name)
+
+  # Constructed in the root stack from the same parameters used to name the bucket.
+  # Avoids a circular dependency between the storage and queues stacks.
+  UploadBucketArn:
+    Type: String
+    Description: ARN of the upload S3 bucket (used in queue policy SourceArn condition)
+
+Resources:
+
+  # ── Main queue ────────────────────────────────────────────────────────────────
+  AudioToTranscribeQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${Prefix}-${LambdaTs}-queue"
+      DelaySeconds: 0
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 345600
+      ReceiveMessageWaitTimeSeconds: 0
+      VisibilityTimeout: 30
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AudioToTranscribeDlq.Arn
+        maxReceiveCount: 3
+
+  # ── Dead-letter queue ─────────────────────────────────────────────────────────
+  AudioToTranscribeDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${Prefix}-${LambdaTs}-dlq"
+      DelaySeconds: 0
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 345600
+      ReceiveMessageWaitTimeSeconds: 0
+      VisibilityTimeout: 30
+      SqsManagedSseEnabled: true
+
+  # ── Queue policy: allow S3 to send messages ───────────────────────────────────
+  AudioToTranscribeQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref AudioToTranscribeQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: audio-to-transcribe-policy
+        Statement:
+          - Sid: AllowS3SendMessage
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: SQS:SendMessage
+            Resource: !GetAtt AudioToTranscribeQueue.Arn
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Ref UploadBucketArn
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  # ── DLQ policy: owner account full access ─────────────────────────────────────
+  AudioToTranscribeDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref AudioToTranscribeDlq
+      PolicyDocument:
+        Version: '2008-10-17'
+        Id: __default_policy_ID
+        Statement:
+          - Sid: __owner_statement
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: SQS:*
+            Resource: !GetAtt AudioToTranscribeDlq.Arn
+
+Outputs:
+  QueueArn:
+    Description: ARN of the main SQS upload queue
+    Value: !GetAtt AudioToTranscribeQueue.Arn
+
+  QueueUrl:
+    Description: URL of the main SQS upload queue
+    Value: !Ref AudioToTranscribeQueue
+
+  DlqArn:
+    Description: ARN of the dead-letter queue
+    Value: !GetAtt AudioToTranscribeDlq.Arn
