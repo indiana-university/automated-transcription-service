@@ -25,6 +25,8 @@ module "dynamodb_table" {
   point_in_time_recovery_enabled = true
   server_side_encryption_enabled = true
 
+  deletion_protection_enabled = true
+
   tags = {
     Project = "ATS"
   }
