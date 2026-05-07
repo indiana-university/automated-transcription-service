@@ -168,3 +168,9 @@ override.tf.json
 
 #Avoid picking up any .DS_Store files from Mac OS
 .DS_Store
+
+# Ignore SAM build artifacts
+.aws-sam/build/
+
+# Ignore SAM configuration file with environment-specific values
+samconfig.toml

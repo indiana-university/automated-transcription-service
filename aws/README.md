@@ -40,6 +40,9 @@ The `--use-container` flag builds Lambda dependencies inside a Lambda-compatible
 sam build --use-container
 ```
 
+> [!NOTE]
+> **CloudShell users:** The default runtime is Python 3.12. If you changed `PythonVersion` to `3.13`, be aware that AWS has not yet published a SAM build image for Python 3.13 and `sam build --use-container` will fail. Use Python 3.12 (the default) to deploy from CloudShell.
+
 ### 4 — Deploy
 
 ```bash

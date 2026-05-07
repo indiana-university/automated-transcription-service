@@ -23,8 +23,8 @@ Parameters:
 
   PythonVersion:
     Type: String
-    Default: '3.13'
-    Description: Python runtime version (e.g. 3.13)
+    Default: '3.12'
+    Description: Python runtime version (e.g. 3.12)
 
   Mpl:
     Type: String

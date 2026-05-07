@@ -81,7 +81,7 @@ Parameters:
 
   PythonVersion:
     Type: String
-    Default: '3.13'
+    Default: '3.12'
     AllowedValues:
       - '3.12'
       - '3.13'

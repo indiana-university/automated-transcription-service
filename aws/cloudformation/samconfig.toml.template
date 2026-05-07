@@ -23,11 +23,11 @@ use_container = true
 # TODO: Set your target AWS region.
 region = "us-east-1"
 
-# TODO: Set the S3 bucket used to stage nested templates and Lambda packages.
+# OPTIONAL: Set the S3 bucket used to stage nested templates and Lambda packages.
 # If you do not have one, use --resolve-s3 on the command line to let SAM
 # create and manage one automatically:
 #   sam deploy --resolve-s3
-s3_bucket = ""
+# s3_bucket = ""
 
 # TODO: Set a prefix to keep your deployment artifacts organised in S3.
 s3_prefix = "ats"
