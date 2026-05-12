@@ -41,7 +41,13 @@ sam build --use-container
 ```
 
 > [!NOTE]
-> **CloudShell users:** The default runtime is Python 3.12. If you changed `PythonVersion` to `3.13`, be aware that AWS has not yet published a SAM build image for Python 3.13 and `sam build --use-container` will fail. Use Python 3.12 (the default) to deploy from CloudShell.
+> **CloudShell: use `sam build --no-use-container`**
+>
+> CloudShell's Docker daemon cannot reach ECR Public (`public.ecr.aws`), so `sam build --use-container` fails for every Python version. Instead, install Python 3.12 (see [prerequisites](../doc/prerequisites.md)) and build natively:
+> ```bash
+> sam build --no-use-container
+> ```
+> CloudShell AL2023 and the Lambda Python 3.12 runtime share the same OS and glibc, so pip will download pre-compiled manylinux wheels for binary dependencies such as `lxml` — no compilation required.
 
 ### 4 — Deploy
 
