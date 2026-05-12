@@ -74,14 +74,29 @@ module "step_function" {
             "Next": "Create DOCX"
           }
         ],
-        "Default": "Transcribe failed notification"
+        "Default": "Build failure body"
+      },
+      "Build failure body": {
+        "Type": "Pass",
+        "Parameters": {
+          "job.$": "$.detail.TranscriptionJobName",
+          "s3uri": "N/A",
+          "subject": "Transcription job failed"
+        },
+        "ResultPath": "$.body",
+        "Next": "Transcribe failed notification"
       },
       "Transcribe failed notification": {
         "Type": "Task",
-        "Resource": "arn:aws:states:::sns:publish",
+        "Resource": "arn:aws:states:::aws-sdk:sns:publish",
         "Parameters": {
-          "Message": "Transcribe job failed. See CloudWatch logs for details.",
-          "TopicArn": "${module.sns_topic.topic_arn}"
+          "TopicArn": "${module.sns_topic.topic_arn}",
+          "Subject.$": "$.body.subject",
+          "MessageStructure": "json",
+          "Message": {
+            "default.$": "States.Format('Transcription job {} failed. See CloudWatch logs for details.', $.body.job)",
+            "lambda.$": "States.JsonToString($.body)"
+          }
         },
         "Next": "ERROR"
       },
