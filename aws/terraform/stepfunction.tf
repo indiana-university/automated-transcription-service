@@ -130,7 +130,7 @@ module "step_function" {
           "Subject.$": "$.body.subject",
           "MessageStructure": "json",
           "Message": {
-            "default": "States.Format('Transcription job {} completed. Transcript available at {}', $.body.job_name, $.body.s3uri)",
+            "default.$": "States.Format('Transcription job {} completed. Transcript available at {}', $.body.job, $.body.s3uri)",
             "lambda.$": "States.JsonToString($.body)"
           }
         },
