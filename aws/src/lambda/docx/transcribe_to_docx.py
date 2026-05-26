@@ -758,6 +758,8 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': {
+                'job': job_name,
+                's3uri': 'N/A',
                 'subject': title,
                 'lambda': default_message,
                 'default': default_message,
@@ -774,6 +776,8 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': {
+                'job': job_name,
+                's3uri': 'N/A',
                 'subject': title,
                 'lambda': lambda_message,
                 'default': default_message,
@@ -795,6 +799,8 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': {
+                'job': job_name,
+                's3uri': 'N/A',
                 'subject': title,
                 'lambda': default_message,
                 'default': default_message,
@@ -816,6 +822,8 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': {
+                'job': job_name,
+                's3uri': 'N/A',
                 'subject': title,
                 'lambda': default_message,
                 'default': default_message,
@@ -840,6 +848,8 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': {
+                'job': job_name,
+                's3uri': 'N/A',
                 'subject': title,
                 'lambda': default_message,
                 'default': default_message,
