@@ -1,6 +1,6 @@
 module "step_function" {
   source  = "terraform-aws-modules/step-functions/aws"
-  version = ">= 4.2.0"
+  version = "5.1.0"
 
   name = "${var.prefix}-postprocessing"
 
