@@ -83,7 +83,7 @@ variable "slack_notification" {
 }
 
 variable "python_version" {
-  description = "Python version to use for the Lambda functions. Supported versions: 3.12 or later"
+  description = "Python version to use for the Lambda functions. Supported versions: 3.13 or later"
   type        = string
   default     = "3.13"
 }
