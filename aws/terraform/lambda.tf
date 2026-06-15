@@ -6,7 +6,7 @@ data "aws_ecr_authorization_token" "token" {}
 
 provider "docker" {
   registry_auth {
-    address  = format("%v.dkr.ecr.%v.amazonaws.com", data.aws_caller_identity.this.account_id, data.aws_region.current.id)
+    address  = format("%v.dkr.ecr.%v.amazonaws.com", data.aws_caller_identity.this.account_id, data.aws_region.current.region)
     username = data.aws_ecr_authorization_token.token.user_name
     password = data.aws_ecr_authorization_token.token.password
   }
@@ -22,7 +22,7 @@ resource "aws_lambda_event_source_mapping" "upload" {
 
 module "transcribe" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = ">= 7.14.0"
+  version = "8.8.0"
 
   function_name = "${var.prefix}-${var.lambda_ts}"
   handler       = "audio_to_transcribe.lambda_handler"
@@ -81,7 +81,7 @@ module "transcribe" {
 module "teams-notification" {
   count   = var.teams_notification ? 1 : 0
   source  = "terraform-aws-modules/lambda/aws"
-  version = ">= 7.14.0"
+  version = "8.8.0"
 
   function_name = "${var.prefix}-teams-notification"
   handler       = "sns_to_teams.lambda_handler"
@@ -167,7 +167,7 @@ resource "aws_sns_topic_subscription" "teams_notification_subscription" {
 
 module "export_jobs" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = ">= 7.14.0"
+  version = "8.8.0"
 
   function_name = "${var.prefix}-export-jobs"
   handler       = "export_jobs.lambda_handler"
@@ -213,7 +213,7 @@ module "export_jobs" {
 
 module "docker_build" {
   source  = "terraform-aws-modules/lambda/aws//modules/docker-build"
-  version = ">= 7.20.1"
+  version = "8.8.0"
 
   create_ecr_repo = true
   ecr_repo        = var.prefix
@@ -242,14 +242,14 @@ module "docker_build" {
   source_path = "../src/lambda/docx"
   platform    = "linux/amd64"
   build_args = {
-    PYTHON_VERSION = var.python_version # Specify the Python version to use in the Dockerfile
+    PYTHON_VERSION = 3.13 # Specify the Python version to use in the Dockerfile. Hardcoded to match the distroless image.
   }
 
 }
 
 module "docx" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = ">= 7.14.0"
+  version = "8.8.0"
 
   function_name  = "${var.prefix}-${var.lambda_docx}"
   description    = "Postprocessing for transcribe jobs"
@@ -318,7 +318,7 @@ module "docx" {
 module "slack-notification" {
   count   = var.slack_notification ? 1 : 0
   source  = "terraform-aws-modules/lambda/aws"
-  version = ">= 7.14.0"
+  version = "8.8.0"
 
   function_name = "${var.prefix}-slack-notification"
   handler       = "sns_to_slack.lambda_handler"

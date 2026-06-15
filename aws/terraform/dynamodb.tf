@@ -1,6 +1,6 @@
 module "dynamodb_table" {
   source  = "terraform-aws-modules/dynamodb-table/aws"
-  version = ">= 4.2.0"
+  version = "5.5.0"
 
   name      = "${var.prefix}-jobs-table"
   hash_key  = "PK"

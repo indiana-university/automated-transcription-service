@@ -1,10 +1,10 @@
 # Python version passed via build_args in lambda.tf
-ARG PYTHON_VERSION
+ARG PYTHON_VERSION=3.13
 
 # Define custom function directory
 ARG FUNCTION_DIR="/function"
 
-FROM python:${PYTHON_VERSION} AS build-image
+FROM python:${PYTHON_VERSION}-slim-trixie AS build-image
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR
@@ -18,23 +18,20 @@ COPY requirements.txt  .
 RUN  pip install --target ${FUNCTION_DIR} awslambdaric
 RUN  pip install -r requirements.txt --target ${FUNCTION_DIR}
 
-# Use slim Python image to minimize size and attack surface
-FROM python:${PYTHON_VERSION}-slim
+# Use a distroless Python image to reduce the final image size and attack surface
+FROM gcr.io/distroless/python3-debian13:nonroot
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR
-
-# Create a non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Set working directory
 WORKDIR ${FUNCTION_DIR}
 
 # Copy in the built dependencies from build stage
-COPY --from=build-image --chown=appuser:appuser ${FUNCTION_DIR} ${FUNCTION_DIR}
+COPY --from=build-image --chown=nonroot:nonroot ${FUNCTION_DIR} ${FUNCTION_DIR}
 
 # Run as non-root user
-USER appuser
+USER nonroot
 
 # Set the entry point for the Lambda function
-ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
+ENTRYPOINT ["/usr/bin/python", "-m", "awslambdaric"]
