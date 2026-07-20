@@ -7,12 +7,12 @@ transcripts from, the project's S3 buckets — without needing the AWS Console.
 There is no server: signing in vends temporary, scoped AWS credentials to the
 browser, and the app is hosted as static files on S3 behind CloudFront.
 
-> **SAML single sign-on is required.** Sign-in federates to your institution's
-> SAML 2.0 identity provider via Cognito; there are no local accounts, passwords,
-> or email invitations. Deploying this feature therefore requires an IdP that
-> speaks SAML 2.0 (e.g. Shibboleth, ADFS, Entra ID, Okta). Cognito-managed
-> sign-in (native accounts with emailed invitations) is possible but deliberately
-> not implemented, to keep a single tested auth path.
+> **OpenID Connect single sign-on is required.** Sign-in federates to your
+> institution's OIDC identity provider via Cognito; there are no local accounts,
+> passwords, or email invitations. Deploying this feature therefore requires an
+> IdP that speaks OIDC (e.g. Shibboleth with the OIDC plugin, Entra ID, Okta,
+> Keycloak). Cognito-managed sign-in (native accounts with emailed invitations)
+> is possible but deliberately not implemented.
 
 ## What users can do
 
@@ -30,7 +30,7 @@ browser, and the app is hosted as static files on S3 behind CloudFront.
    (via the Cognito hosted domain) — no intermediate login page. After signing
    out, or after a failed attempt, a manual Sign in button is shown instead to
    avoid a redirect loop. **Who may sign in is controlled at the IdP** —
-   register the service provider so only the authorized group can authenticate.
+   register the relying party so only the authorized group can authenticate.
    There is no self sign-up and no local credential to attack.
 2. On first successful login the user is provisioned just-in-time in the user
    pool; Cognito's Identity Pool then exchanges the session for **temporary AWS
@@ -42,13 +42,14 @@ browser, and the app is hosted as static files on S3 behind CloudFront.
 
 ## Enabling the feature (it is off by default)
 
-Everything (Cognito, SAML provider, IAM role, web bucket, CloudFront, bucket
+Everything (Cognito, OIDC provider, IAM role, web bucket, CloudFront, bucket
 CORS) is gated behind one Terraform variable. In `ats.auto.tfvars`:
 
 ```hcl
 enable_storage_browser = true
-saml_metadata_url      = "https://idp.example.edu/idp/shibboleth"  # your IdP's metadata
-saml_email_attribute   = "urn:oid:0.9.2342.19200300.100.1.3"       # attribute released as email
+oidc_issuer_url        = "https://idp.example.edu"  # discovery doc at <issuer>/.well-known/openid-configuration
+oidc_client_id         = "..."                      # issued by the IdP when the app is registered
+oidc_client_secret     = "..."                      # issued by the IdP; see note below
 ```
 
 Then `terraform apply` (see [`../terraform`](../terraform)). With the flag left
@@ -56,17 +57,26 @@ Then `terraform apply` (see [`../terraform`](../terraform)). With the flag left
 pipeline is completely unchanged. Setting it back to `false` and re-applying
 tears the feature down.
 
+The client secret never reaches the browser — it is used only between Cognito
+and the IdP. It lives in the git-ignored `ats.auto.tfvars` and in Terraform
+state, so protect the state file accordingly.
+
 ### Registering with your identity provider
 
-The IdP team registers this app as a SAML service provider. Everything they
-need comes from `terraform output`:
+Registration happens **before** the first apply (the apply needs the client ID
+and secret it produces). The IdP team needs:
 
-- **SP entity ID**: `saml_sp_entity_id` (`urn:amazon:cognito:sp:<pool id>`)
-- **ACS / reply URL**: `saml_acs_url` (`https://<domain>/saml2/idpresponse`)
-- **Attribute release**: the user's email, as the attribute named in
-  `saml_email_attribute`
-- **Access policy**: restrict the service provider to the authorized group —
+- **Redirect URI**:
+  `https://<domain prefix>.auth.<region>.amazoncognito.com/oauth2/idpresponse`,
+  where the domain prefix is `cognito_domain_prefix` from `ats.auto.tfvars`
+  (default: `<prefix>-storage-browser`, i.e. `ats-storage-browser`). After
+  apply, the `oidc_redirect_uri` output shows the live value to double-check.
+- **Scopes**: `openid email profile` (the email claim must be released)
+- **Access policy**: restrict the relying party to the authorized group —
   this is where "only these users may use the app" is enforced
+
+They return a **client ID and client secret**, which go into `ats.auto.tfvars`
+as shown above.
 
 ## Build and deploy the app
 

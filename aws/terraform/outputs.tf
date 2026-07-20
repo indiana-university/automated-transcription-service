@@ -37,18 +37,15 @@ output "cognito_domain" {
   value = one([for d in aws_cognito_user_pool_domain.ats[*].domain : "${d}.auth.${var.region}.amazoncognito.com"])
 }
 
-output "saml_provider_name" {
-  value = one(aws_cognito_identity_provider.saml[*].provider_name)
+output "oidc_provider_name" {
+  value = one(aws_cognito_identity_provider.oidc[*].provider_name)
 }
 
-# Give these two to the identity-provider team when registering the service
-# provider (along with a request to release the email attribute).
-output "saml_sp_entity_id" {
-  value = one([for id in aws_cognito_user_pool.ats[*].id : "urn:amazon:cognito:sp:${id}"])
-}
-
-output "saml_acs_url" {
-  value = one([for d in aws_cognito_user_pool_domain.ats[*].domain : "https://${d}.auth.${var.region}.amazoncognito.com/saml2/idpresponse"])
+# Give this to the identity-provider team when registering the relying party
+# (along with the scopes: openid email profile). They return a client ID and
+# secret for the tfvars.
+output "oidc_redirect_uri" {
+  value = one([for d in aws_cognito_user_pool_domain.ats[*].domain : "https://${d}.auth.${var.region}.amazoncognito.com/oauth2/idpresponse"])
 }
 
 output "webapp_bucket_name" {

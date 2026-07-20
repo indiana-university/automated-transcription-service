@@ -5,9 +5,9 @@ import { Hub } from 'aws-amplify/utils';
 import '@aws-amplify/ui-react/styles.css';
 import { StorageBrowser } from './storage-browser';
 
-// SAML SSO is the only sign-in path: no local accounts, no password form.
+// OIDC SSO is the only sign-in path: no local accounts, no password form.
 // Unauthenticated visitors are redirected straight to the identity provider.
-const samlProvider = import.meta.env.VITE_SAML_PROVIDER;
+const oidcProvider = import.meta.env.VITE_OIDC_PROVIDER;
 
 // Set right before signOut so the post-sign-out page load shows a "signed out"
 // screen instead of auto-redirecting the user straight back in.
@@ -20,7 +20,7 @@ function startSignIn() {
   sessionStorage.removeItem(SIGNED_OUT_FLAG);
   if (redirectStarted) return;
   redirectStarted = true;
-  signInWithRedirect({ provider: { custom: samlProvider } });
+  signInWithRedirect({ provider: { custom: oidcProvider } });
 }
 
 export default function App() {

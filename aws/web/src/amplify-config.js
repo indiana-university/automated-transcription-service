@@ -4,7 +4,7 @@
 // (see ../.env.template). Nothing here is environment- or institution-specific,
 // so this file is safe to commit.
 //
-// Sign-in is SAML SSO only: the oauth block points at the Cognito hosted
+// Sign-in is OIDC SSO only: the oauth block points at the Cognito hosted
 // domain, which brokers the redirect to the institution's identity provider.
 
 const env = import.meta.env;

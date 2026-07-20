@@ -102,26 +102,33 @@ variable "enable_storage_browser" {
   default     = false
 }
 
-variable "saml_metadata_url" {
-  description = "SAML 2.0 metadata URL of the institution's identity provider. Required when enable_storage_browser is true — SAML single sign-on is the only implemented sign-in path."
+variable "oidc_issuer_url" {
+  description = "Issuer URL of the institution's OpenID Connect identity provider (discovery document at <issuer>/.well-known/openid-configuration). Required when enable_storage_browser is true — OIDC single sign-on is the only implemented sign-in path."
   type        = string
   default     = ""
 }
 
-variable "saml_provider_name" {
-  description = "Display name for the SAML identity provider in Cognito (also used by the web app to start sign-in)."
+variable "oidc_client_id" {
+  description = "Client ID issued when registering this app with the OIDC identity provider. Required when enable_storage_browser is true."
+  type        = string
+  default     = ""
+}
+
+variable "oidc_client_secret" {
+  description = "Client secret issued when registering this app with the OIDC identity provider. Required when enable_storage_browser is true. Used only between Cognito and the IdP; stored in Terraform state, so protect the state file."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "oidc_provider_name" {
+  description = "Display name for the OIDC identity provider in Cognito (also used by the web app to start sign-in)."
   type        = string
   default     = "SSO"
 }
 
-variable "saml_email_attribute" {
-  description = "SAML assertion attribute mapped to the user's email. Default is the standard 'mail' attribute OID; override to match what your IdP releases."
-  type        = string
-  default     = "urn:oid:0.9.2342.19200300.100.1.3"
-}
-
 variable "cognito_domain_prefix" {
-  description = "Globally unique (per region) prefix for the Cognito hosted domain that handles the SAML redirect. Blank derives '<prefix>-storage-browser'."
+  description = "Globally unique (per region) prefix for the Cognito hosted domain that handles the sign-in redirect. Blank derives '<prefix>-storage-browser'."
   type        = string
   default     = ""
 }

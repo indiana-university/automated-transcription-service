@@ -20,12 +20,11 @@ echo "==> Reading Terraform outputs"
 tf() { terraform -chdir="${TF_DIR}" output -raw "$1" 2>/dev/null || true; }
 
 REGION="$(tf region)"
-REGION="${REGION:-us-east-1}"
 USER_POOL_ID="$(tf cognito_user_pool_id)"
 USER_POOL_CLIENT_ID="$(tf cognito_user_pool_client_id)"
 IDENTITY_POOL_ID="$(tf cognito_identity_pool_id)"
 COGNITO_DOMAIN="$(tf cognito_domain)"
-SAML_PROVIDER="$(tf saml_provider_name)"
+OIDC_PROVIDER="$(tf oidc_provider_name)"
 UPLOAD_BUCKET="$(tf upload_bucket_name)"
 DOWNLOAD_BUCKET="$(tf download_bucket_name)"
 WEBAPP_BUCKET="$(tf webapp_bucket_name)"
@@ -43,7 +42,7 @@ VITE_USER_POOL_ID=${USER_POOL_ID}
 VITE_USER_POOL_CLIENT_ID=${USER_POOL_CLIENT_ID}
 VITE_IDENTITY_POOL_ID=${IDENTITY_POOL_ID}
 VITE_COGNITO_DOMAIN=${COGNITO_DOMAIN}
-VITE_SAML_PROVIDER=${SAML_PROVIDER}
+VITE_OIDC_PROVIDER=${OIDC_PROVIDER}
 VITE_UPLOAD_BUCKET=${UPLOAD_BUCKET}
 VITE_DOWNLOAD_BUCKET=${DOWNLOAD_BUCKET}
 EOF
