@@ -242,7 +242,7 @@ module "docker_build" {
   source_path = "../src/lambda/docx"
   platform    = "linux/amd64"
   build_args = {
-    PYTHON_VERSION = 3.13 # Specify the Python version to use in the Dockerfile. Hardcoded to match the distroless image.
+    RUST_VERSION = "1.97.1"
   }
 
 }
@@ -266,15 +266,11 @@ module "docx" {
 
   image_uri = module.docker_build.image_uri
   environment_variables = {
-    MPLCONFIGDIR      = var.mpl
     BUCKET            = aws_s3_bucket.download.id
-    TIMEOUT           = var.docx_timeout
     CONFIDENCE        = var.confidence_score
     DOCX_MAX_DURATION = var.docx_max_duration
     DOCUMENT_TITLE    = var.document_title
   }
-
-  image_config_command = ["transcribe_to_docx.lambda_handler"]
 
   attach_policy_json = true
   policy_json        = <<EOF

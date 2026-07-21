@@ -4,12 +4,6 @@ variable "region" {
   default     = "us-east-1"
 }
 
-variable "mpl" {
-  description = "default directory for matplot lib"
-  type        = string
-  default     = "/tmp"
-}
-
 variable "teams_webhook" {
   description = "Teams webhook"
   type        = string
@@ -38,12 +32,6 @@ variable "lambda_ts" {
   description = "name of the lambda function audio-to-ts function"
   type        = string
   default     = "audio-to-transcribe"
-}
-
-variable "docx_timeout" {
-  description = "Timeout for docx lambda function"
-  type        = number
-  default     = 300000 # 5 minutes in milliseconds
 }
 
 variable "account" {

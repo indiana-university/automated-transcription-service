@@ -7,5 +7,5 @@ We believe that cloud machine learning APIs provides a powerful alternative to r
 Thus, we seek to provide a new service to researchers that will make audio transcription convenient, efficient, and accessible to them, even without technical skills. For researchers, this will provide an affordable and secure option for quickly producing automated transcripts of research-related recordings.
 
 This project has folders:
-* aws: To build a pipeline with terraform to accept audio files in an S3 input bucket and convert those to docx with the help of a Python script. Output files are placed in another S3 output bucket
+* aws: To build a pipeline with Terraform to accept audio files in an S3 input bucket and convert those to DOCX with a Rust Lambda function. Output files are placed in another S3 output bucket
 * google: Python script to convert json to text or docx only
