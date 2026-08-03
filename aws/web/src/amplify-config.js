@@ -44,10 +44,20 @@ const amplifyConfig = {
         [env.VITE_UPLOAD_BUCKET]: {
           bucketName: env.VITE_UPLOAD_BUCKET,
           region: env.VITE_AWS_REGION,
+          // Storage Browser derives its visible "locations" from these path
+          // rules — a bucket without `paths` is not shown at all. "*" exposes
+          // the whole bucket. Keep permissions in sync with the IAM role in
+          // aws/terraform/cognito.tf (the role is what actually enforces them).
+          paths: {
+            '*': { authenticated: ['get', 'list', 'write', 'delete'] },
+          },
         },
         [env.VITE_DOWNLOAD_BUCKET]: {
           bucketName: env.VITE_DOWNLOAD_BUCKET,
           region: env.VITE_AWS_REGION,
+          paths: {
+            '*': { authenticated: ['get', 'list'] },
+          },
         },
       },
     },

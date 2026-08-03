@@ -150,6 +150,9 @@ data "aws_iam_policy_document" "cognito_assume" {
 }
 
 # Read/write the upload bucket, read-only the download bucket — nothing else.
+# This role is the sole enforcement of bucket access. The web app mirrors these
+# permissions in aws/web/src/amplify-config.js (`paths`) purely so the UI shows
+# the right actions — keep the two in sync when changing the access model.
 resource "aws_iam_role" "storage_browser_authorized" {
   count              = local.storage_browser_count
   name               = "${var.prefix}-storage-browser-authorized"
