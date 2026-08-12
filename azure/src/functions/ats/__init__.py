@@ -1,0 +1,1 @@
+"""Azure ATS application helpers."""

@@ -1,0 +1,32 @@
+import sys
+from pathlib import Path
+from zipfile import ZipFile
+
+sys.path.insert(0, str(Path(__file__).parents[1] / "src" / "functions"))
+
+from ats.documents import create_docx, transcript_summary
+
+SAMPLE = {
+    "durationInTicks": 25_000_000,
+    "recognizedPhrases": [{
+        "recognitionStatus": "Success",
+        "channel": 0,
+        "speaker": 1,
+        "locale": "en-US",
+        "offsetInTicks": 7_600_000,
+        "nBest": [{"confidence": 0.75, "display": "Hello world."}],
+    }],
+}
+
+
+def test_summary_uses_azure_ticks_and_confidence():
+    assert transcript_summary(SAMPLE) == {"confidence": 75, "duration": 2.5, "languages": "en-US", "phrases": 1}
+
+
+def test_docx_contains_transcript_and_speaker_label():
+    content, _ = create_docx(SAMPLE, "interview", threshold=90)
+    with ZipFile(__import__("io").BytesIO(content)) as archive:
+        xml = archive.read("word/document.xml").decode("utf-8")
+    assert "Hello world." in xml
+    assert "Speaker 2" in xml
+    assert "interview" in xml
