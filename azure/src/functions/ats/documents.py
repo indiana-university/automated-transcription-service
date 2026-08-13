@@ -55,7 +55,7 @@ def create_docx(data, job_name, title="Transcription Results", threshold=90):
             continue
         best = phrase["nBest"][0]
         speaker = phrase.get("speaker")
-        label = f"Speaker {int(speaker) + 1}" if speaker is not None else f"Channel {phrase.get('channel', 0) + 1}"
+        label = f"Speaker {int(speaker)}" if speaker is not None else f"Channel {phrase.get('channel', 0) + 1}"
         paragraph = document.add_paragraph()
         paragraph.add_run(f"[{_timestamp(phrase.get('offsetInTicks'))}] {label}: ").bold = True
         run = paragraph.add_run(best.get("display") or best.get("lexical", ""))
