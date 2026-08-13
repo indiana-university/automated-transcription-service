@@ -6,7 +6,6 @@ from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
 from docx.shared import Mm, Pt
 
-
 START_NEW_SEGMENT_SECONDS = 2.0
 
 
@@ -18,6 +17,45 @@ def _timestamp(ticks):
     value = timedelta(seconds=_seconds(ticks))
     total = int(value.total_seconds())
     return f"{total // 3600:02d}:{(total % 3600) // 60:02d}:{total % 60:02d}"
+
+
+def _word_span(word):
+    start = word.get("offsetInTicks")
+    duration = word.get("durationInTicks")
+    if start is None:
+        start = float(word.get("offsetMilliseconds") or 0) * 10_000
+    if duration is None:
+        duration = float(word.get("durationMilliseconds") or 0) * 10_000
+    return float(start), float(start) + float(duration)
+
+
+def _display_word_confidence(display_word, lexical_words):
+    if display_word.get("confidence") is not None:
+        return float(display_word["confidence"])
+    display_start, display_end = _word_span(display_word)
+    confidences = [
+        float(word["confidence"])
+        for word in lexical_words
+        if word.get("confidence") is not None
+        and max(display_start, _word_span(word)[0]) < min(display_end, _word_span(word)[1])
+    ]
+    return min(confidences) if confidences else None
+
+
+def _add_transcript_part(paragraph, best, leading_space, threshold):
+    display_words = best.get("displayWords") or []
+    lexical_words = best.get("words") or []
+    if not display_words:
+        text = best.get("display") or best.get("lexical", "")
+        paragraph.add_run((" " if leading_space else "") + text)
+        return
+
+    for index, word in enumerate(display_words):
+        text = word.get("displayText", "")
+        run = paragraph.add_run((" " if leading_space or index else "") + text)
+        confidence = _display_word_confidence(word, lexical_words)
+        if confidence is not None and confidence * 100 < threshold:
+            run.font.highlight_color = WD_COLOR_INDEX.YELLOW
 
 
 def transcript_summary(data, fallback_locale=None):
@@ -92,10 +130,7 @@ def create_docx(data, job_name, title="Transcription Results", threshold=90, fal
         paragraph = document.add_paragraph()
         paragraph.add_run(f"[{_timestamp(segment['start'])}] {segment['label']}: ").bold = True
         for index, best in enumerate(segment["parts"]):
-            text = best.get("display") or best.get("lexical", "")
-            run = paragraph.add_run((" " if index else "") + text)
-            if float(best.get("confidence", 0)) * 100 < threshold:
-                run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+            _add_transcript_part(paragraph, best, index > 0, threshold)
 
     output = BytesIO()
     document.save(output)

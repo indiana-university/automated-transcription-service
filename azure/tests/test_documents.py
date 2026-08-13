@@ -1,9 +1,10 @@
-from io import BytesIO
 import sys
+from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
 
 from docx import Document
+from docx.enum.text import WD_COLOR_INDEX
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src" / "functions"))
 
@@ -153,3 +154,63 @@ def test_docx_starts_new_segment_after_two_second_pause():
         "[00:00:00] Speaker 1: First phrase.",
         "[00:00:03] Speaker 1: Second phrase.",
     ]
+
+
+def test_docx_highlights_only_low_confidence_display_words():
+    phrase = {
+        "recognitionStatus": "Success",
+        "speaker": 1,
+        "nBest": [{
+            "confidence": 0.75,
+            "display": "Certain uncertain.",
+            "words": [
+                {"word": "certain", "offsetInTicks": 0, "durationInTicks": 10, "confidence": 0.95},
+                {"word": "uncertain", "offsetInTicks": 10, "durationInTicks": 10, "confidence": 0.42},
+            ],
+            "displayWords": [
+                {"displayText": "Certain", "offsetInTicks": 0, "durationInTicks": 10},
+                {"displayText": "uncertain.", "offsetInTicks": 10, "durationInTicks": 10},
+            ],
+        }],
+    }
+
+    content, _ = create_docx({"recognizedPhrases": [phrase]}, "interview", threshold=90)
+    transcript = next(
+        paragraph for paragraph in Document(BytesIO(content)).paragraphs if paragraph.text.startswith("[")
+    )
+
+    assert transcript.text == "[00:00:00] Speaker 1: Certain uncertain."
+    assert transcript.runs[1].font.highlight_color is None
+    assert transcript.runs[2].font.highlight_color == WD_COLOR_INDEX.YELLOW
+
+
+def test_docx_maps_formatted_display_word_to_underlying_confidence():
+    phrase = {
+        "recognitionStatus": "Success",
+        "speaker": 1,
+        "nBest": [{
+            "confidence": 0.85,
+            "display": "More than 760,000 alumni.",
+            "words": [
+                {"word": "more", "offsetInTicks": 0, "durationInTicks": 10, "confidence": 0.98},
+                {"word": "than", "offsetInTicks": 10, "durationInTicks": 10, "confidence": 0.95},
+                {"word": "seven", "offsetInTicks": 20, "durationInTicks": 10, "confidence": 0.94},
+                {"word": "hundred", "offsetInTicks": 30, "durationInTicks": 10, "confidence": 0.73},
+                {"word": "alumni", "offsetInTicks": 40, "durationInTicks": 10, "confidence": 0.97},
+            ],
+            "displayWords": [
+                {"displayText": "More", "offsetInTicks": 0, "durationInTicks": 10},
+                {"displayText": "than", "offsetInTicks": 10, "durationInTicks": 10},
+                {"displayText": "760,000", "offsetInTicks": 20, "durationInTicks": 20},
+                {"displayText": "alumni.", "offsetInTicks": 40, "durationInTicks": 10},
+            ],
+        }],
+    }
+
+    content, _ = create_docx({"recognizedPhrases": [phrase]}, "interview", threshold=90)
+    transcript = next(
+        paragraph for paragraph in Document(BytesIO(content)).paragraphs if paragraph.text.startswith("[")
+    )
+
+    assert transcript.text == "[00:00:00] Speaker 1: More than 760,000 alumni."
+    assert transcript.runs[3].font.highlight_color == WD_COLOR_INDEX.YELLOW
