@@ -1,6 +1,10 @@
 import json
 import os
+import re
+import secrets
+from pathlib import PurePosixPath
 from urllib.error import HTTPError
+from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
 from azure.identity import DefaultAzureCredential
@@ -32,7 +36,14 @@ def _api_url(path):
     return f"{endpoint}{path}{separator}api-version={version}"
 
 
-def submit(blob_url):
+def job_name(blob_url):
+    filename = PurePosixPath(unquote(urlparse(blob_url).path)).name
+    safe_filename = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename)
+    suffix = f"{secrets.randbelow(100_000_000):08d}"
+    return f"{safe_filename}-{suffix}"
+
+
+def submit(blob_url, display_name):
     locales = [item.strip() for item in os.environ.get("SPEECH_LOCALES", "en-US").split(",")]
     properties = {
         "diarization": {"enabled": True, "maxSpeakers": int(os.environ.get("MAX_SPEAKERS", "10"))},
@@ -44,11 +55,12 @@ def submit(blob_url):
         properties["languageIdentification"] = {"candidateLocales": locales, "mode": "Single"}
     payload = {
         "contentUrls": [blob_url],
-        "displayName": blob_url.rsplit("/", 1)[-1],
+        "displayName": display_name,
         "locale": locales[0],
         "properties": properties,
     }
     job = _request("POST", _api_url("/speechtotext/transcriptions:submit"), payload)
+    job["displayName"] = display_name
     if "id" not in job:
         job["id"] = job["self"].split("?", 1)[0].rsplit("/", 1)[-1]
     return job

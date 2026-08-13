@@ -4,7 +4,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 
 FUNCTIONS_ROOT = Path(__file__).parents[1] / "src" / "functions"
@@ -21,7 +21,7 @@ class MissingOrchestrationStatus:
 
 def test_start_from_upload_starts_missing_orchestration():
     event = {
-        "id": "event-id",
+        "id": "12345678-1234-5678-9abc-123456789abc",
         "data": {"url": "https://example.test/upload/sample.ogg"},
     }
     message = SimpleNamespace(get_body=lambda: json.dumps(event).encode())
@@ -30,20 +30,25 @@ def test_start_from_upload_starts_missing_orchestration():
         start_new=AsyncMock(),
     )
 
-    start_from_upload = (
-        start_from_upload_builder._function.get_user_function().__wrapped__
-    )
-    asyncio.run(start_from_upload(message, client))
+    start_from_upload = start_from_upload_builder._function.get_user_function().__wrapped__
+    with patch("function_app.speech.job_name", return_value="sample.ogg-48372615"):
+        asyncio.run(start_from_upload(message, client))
 
     client.start_new.assert_awaited_once_with(
         "transcription_orchestrator",
-        "event-id",
-        {"blob_url": "https://example.test/upload/sample.ogg"},
+        "12345678-1234-5678-9abc-123456789abc",
+        {
+            "blob_url": "https://example.test/upload/sample.ogg",
+            "job_name": "sample.ogg-48372615",
+        },
     )
 
 
 def test_orchestrator_does_not_submit_rejected_audio():
-    source = {"blob_url": "https://example.test/upload/stereo.wav"}
+    source = {
+        "blob_url": "https://example.test/upload/stereo.wav",
+        "job_name": "stereo.wav-unique",
+    }
     context = SimpleNamespace(
         get_input=Mock(return_value=source),
         call_activity=Mock(side_effect=lambda name, value: (name, value)),
@@ -71,7 +76,10 @@ def test_orchestrator_does_not_submit_rejected_audio():
 
 
 def test_orchestrator_deletes_upload_when_speech_succeeds():
-    source = {"blob_url": "https://example.test/upload/sample.ogg"}
+    source = {
+        "blob_url": "https://example.test/upload/sample.ogg",
+        "job_name": "sample.ogg-unique",
+    }
     context = SimpleNamespace(
         current_utc_datetime=datetime(2026, 8, 13, tzinfo=timezone.utc),
         get_input=Mock(return_value=source),

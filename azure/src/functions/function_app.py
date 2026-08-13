@@ -19,11 +19,15 @@ app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
 async def start_from_upload(message: func.QueueMessage, client):
     event = json.loads(message.get_body().decode("utf-8"))
     instance_id = event["id"]
+    blob_url = event["data"]["url"]
     if not await client.get_status(instance_id):
         await client.start_new(
             "transcription_orchestrator",
             instance_id,
-            {"blob_url": event["data"]["url"]},
+            {
+                "blob_url": blob_url,
+                "job_name": speech.job_name(blob_url),
+            },
         )
 
 
@@ -34,7 +38,7 @@ def transcription_orchestrator(context: df.DurableOrchestrationContext):
     if not validation["valid"]:
         rejection = {
             "subject": "Transcription rejected",
-            "job": source["blob_url"].rsplit("/", 1)[-1],
+            "job": source["job_name"],
             "url": "N/A",
             "reason": validation["reason"],
         }
@@ -80,7 +84,7 @@ def validate_audio(source):
 
 @app.activity_trigger(input_name="source")
 def submit_transcription(source):
-    return speech.submit(source["blob_url"])
+    return speech.submit(source["blob_url"], source["job_name"])
 
 
 @app.activity_trigger(input_name="job")
