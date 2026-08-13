@@ -96,6 +96,7 @@ def finish_transcription(job):
         name,
         os.environ.get("DOCUMENT_TITLE", "Transcription Results"),
         int(os.environ.get("CONFIDENCE", "90")),
+        job.get("locale"),
     )
     url = storage.save_document(name, content)
     storage.record_job(name, summary, url)

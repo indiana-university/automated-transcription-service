@@ -17,10 +17,12 @@ def _timestamp(ticks):
     return f"{total // 3600:02d}:{(total % 3600) // 60:02d}:{total % 60:02d}"
 
 
-def transcript_summary(data):
+def transcript_summary(data, fallback_locale=None):
     phrases = [item for item in data.get("recognizedPhrases", []) if item.get("recognitionStatus") == "Success"]
     confidences = [item["nBest"][0].get("confidence", 0) for item in phrases if item.get("nBest")]
     languages = sorted({item["locale"] for item in phrases if item.get("locale")})
+    if not languages and fallback_locale:
+        languages = [fallback_locale]
     return {
         "confidence": round(statistics.mean(confidences) * 100, 2) if confidences else 0,
         "duration": round(_seconds(data.get("durationInTicks")), 2),
@@ -29,7 +31,7 @@ def transcript_summary(data):
     }
 
 
-def create_docx(data, job_name, title="Transcription Results", threshold=90):
+def create_docx(data, job_name, title="Transcription Results", threshold=90, fallback_locale=None):
     document = Document()
     section = document.sections[0]
     section.left_margin = section.right_margin = Mm(19.1)
@@ -37,7 +39,7 @@ def create_docx(data, job_name, title="Transcription Results", threshold=90):
     document.styles["Normal"].font.size = Pt(10)
     document.add_heading(title, 1)
 
-    summary = transcript_summary(data)
+    summary = transcript_summary(data, fallback_locale)
     table = document.add_table(rows=0, cols=2)
     table.style = "Light List"
     for label, value in (
