@@ -59,3 +59,16 @@ resource "azurerm_key_vault_secret" "slack" {
   value        = var.slack_webhook
   key_vault_id = azurerm_key_vault.ats.id
 }
+
+resource "random_password" "speech_webhook" {
+  length  = 32
+  special = false
+}
+
+resource "azurerm_key_vault_secret" "speech_webhook" {
+  name         = "speech-webhook-secret"
+  value        = random_password.speech_webhook.result
+  key_vault_id = azurerm_key_vault.ats.id
+
+  depends_on = [azurerm_role_assignment.deployer_keyvault_secrets]
+}

@@ -1,10 +1,9 @@
 import json
 import os
-from datetime import timedelta
 
 import azure.durable_functions as df
 import azure.functions as func
-from ats import audio, documents, notifications, speech, storage
+from ats import audio, documents, notifications, speech, storage, webhooks
 
 app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
 
@@ -26,6 +25,7 @@ async def start_from_upload(message: func.QueueMessage, client):
             instance_id,
             {
                 "blob_url": blob_url,
+                "instance_id": instance_id,
                 "job_name": speech.job_name(blob_url),
             },
         )
@@ -44,37 +44,27 @@ def transcription_orchestrator(context: df.DurableOrchestrationContext):
         }
         yield context.call_activity("send_notification", rejection)
         return rejection
+    yield context.call_activity("ensure_speech_webhook", None)
     job = yield context.call_activity("submit_transcription", source)
-    deadline = context.current_utc_datetime + timedelta(hours=25)
-    while context.current_utc_datetime < deadline:
-        state = yield context.call_activity("get_transcription_status", job)
-        if state == "Succeeded":
-            yield context.call_activity("delete_upload", source)
-            result = yield context.call_activity("finish_transcription", job)
-            yield context.call_activity(
-                "send_notification",
-                {"subject": "Transcription job completed", **result},
-            )
-            return result
-        if state == "Failed":
-            failure = {
-                "subject": "Transcription job failed",
-                "job": job["displayName"],
-                "url": "N/A",
-            }
-            yield context.call_activity("send_notification", failure)
-            return failure
-        wake_at = context.current_utc_datetime + timedelta(
-            minutes=int(os.environ.get("POLL_INTERVAL_MINUTES", "10"))
+    completion = yield context.wait_for_external_event("speech_status")
+    if isinstance(completion, str):
+        completion = json.loads(completion)
+    if completion["status"] == "Succeeded":
+        yield context.call_activity("delete_upload", source)
+        result = yield context.call_activity("finish_transcription", job)
+        yield context.call_activity(
+            "send_notification",
+            {"subject": "Transcription job completed", **result},
         )
-        yield context.create_timer(wake_at)
-    timeout = {
-        "subject": "Transcription job timed out",
+        return result
+    failure = {
+        "subject": "Transcription job failed",
         "job": job["displayName"],
         "url": "N/A",
+        "reason": completion.get("error", {}).get("message", "Unknown Speech error"),
     }
-    yield context.call_activity("send_notification", timeout)
-    return timeout
+    yield context.call_activity("send_notification", failure)
+    return failure
 
 
 @app.activity_trigger(input_name="source")
@@ -84,12 +74,9 @@ def validate_audio(source):
 
 @app.activity_trigger(input_name="source")
 def submit_transcription(source):
-    return speech.submit(source["blob_url"], source["job_name"])
-
-
-@app.activity_trigger(input_name="job")
-def get_transcription_status(job):
-    return speech.status(job)["status"]
+    return speech.submit(
+        source["blob_url"], source["job_name"], source["instance_id"]
+    )
 
 
 @app.activity_trigger(input_name="job")
@@ -116,6 +103,42 @@ def delete_upload(source):
 @app.activity_trigger(input_name="message")
 def send_notification(message):
     notifications.send(message)
+
+
+@app.function_name(name="speech_webhook")
+@app.route(
+    route="speech/webhook", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS
+)
+@app.durable_client_input(client_name="client")
+async def speech_webhook(req: func.HttpRequest, client):
+    validation_token = req.params.get("validationToken")
+    if validation_token:
+        return func.HttpResponse(validation_token, mimetype="text/plain")
+
+    content = req.get_body()
+    signature = req.headers.get("X-MicrosoftSpeechServices-Signature")
+    if not webhooks.valid_signature(content, signature):
+        return func.HttpResponse(status_code=401)
+
+    payload = json.loads(content)
+    transcription_id = payload["self"].split("?", 1)[0].rsplit("/", 1)[-1]
+    job = speech.status({"id": transcription_id})
+    instance_id = job.get("customProperties", {}).get("durableInstanceId")
+    state = job.get("status")
+    if instance_id and state in {"Succeeded", "Failed"}:
+        await client.raise_event(
+            instance_id,
+            "speech_status",
+            {"status": state, "error": job.get("error")},
+        )
+    return func.HttpResponse(status_code=202)
+
+
+@app.activity_trigger(input_name="unused")
+def ensure_speech_webhook(unused):
+    speech.register_webhook(
+        os.environ["SPEECH_WEBHOOK_URL"], webhooks.secret()
+    )
 
 
 @app.route(route="reports/export", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)

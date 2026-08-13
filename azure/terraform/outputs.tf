@@ -3,3 +3,4 @@ output "download_container_url" { value = "${azurerm_storage_account.ats.primary
 output "function_app_name" { value = azapi_resource.function_app.name }
 output "resource_group_name" { value = azurerm_resource_group.ats.name }
 output "storage_account_name" { value = azurerm_storage_account.ats.name }
+output "speech_webhook_url" { value = "https://${azapi_resource.function_app.name}.azurewebsites.net/api/speech/webhook" }

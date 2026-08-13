@@ -20,6 +20,12 @@ resource "azurerm_role_assignment" "function_speech" {
   principal_id         = azurerm_user_assigned_identity.functions.principal_id
 }
 
+resource "azurerm_role_assignment" "function_speech_webhooks" {
+  scope                = azurerm_cognitive_account.speech.id
+  role_definition_name = "Cognitive Services Speech Contributor"
+  principal_id         = azurerm_user_assigned_identity.functions.principal_id
+}
+
 resource "azurerm_role_assignment" "function_keyvault" {
   scope                = azurerm_key_vault.ats.id
   role_definition_name = "Key Vault Secrets User"
@@ -91,7 +97,7 @@ resource "azapi_resource" "function_app" {
     "hidden-link: /app-insights-resource-id" = replace(azurerm_application_insights.ats.id, "Microsoft.Insights", "microsoft.insights")
   })
 
-  depends_on = [azurerm_role_assignment.function_keyvault, azurerm_role_assignment.function_speech, azurerm_role_assignment.function_storage, azurerm_role_assignment.speech_storage]
+  depends_on = [azurerm_role_assignment.function_keyvault, azurerm_role_assignment.function_speech, azurerm_role_assignment.function_speech_webhooks, azurerm_role_assignment.function_storage, azurerm_role_assignment.speech_storage]
 }
 
 resource "azapi_resource" "function_app_settings" {
@@ -122,8 +128,8 @@ resource "azapi_resource" "function_app_settings" {
       SPEECH_ENDPOINT                         = azurerm_cognitive_account.speech.endpoint
       SPEECH_API_VERSION                      = "2025-10-15"
       SPEECH_LOCALES                          = join(",", var.speech_locales)
+      SPEECH_WEBHOOK_URL                      = "https://${azapi_resource.function_app.name}.azurewebsites.net/api/speech/webhook"
       MAX_SPEAKERS                            = tostring(var.max_speakers)
-      POLL_INTERVAL_MINUTES                   = tostring(var.poll_interval_minutes)
       CONFIDENCE                              = tostring(var.confidence_score)
       DOCUMENT_TITLE                          = var.document_title
       KEY_VAULT_URL                           = azurerm_key_vault.ats.vault_uri

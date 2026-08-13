@@ -18,12 +18,6 @@ variable "document_title" {
   default     = "Transcription Results"
   description = "DOCX title."
 }
-variable "poll_interval_minutes" {
-  type        = number
-  default     = 10
-  description = "Speech status polling interval."
-}
-
 variable "confidence_score" {
   type        = number
   default     = 90

@@ -36,6 +36,11 @@ def _api_url(path):
     return f"{endpoint}{path}{separator}api-version={version}"
 
 
+def _management_url(path):
+    endpoint = os.environ["SPEECH_ENDPOINT"].rstrip("/")
+    return f"{endpoint}/speechtotext/v3.2{path}"
+
+
 def job_name(blob_url):
     filename = PurePosixPath(unquote(urlparse(blob_url).path)).name
     safe_filename = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename)
@@ -43,7 +48,7 @@ def job_name(blob_url):
     return f"{safe_filename}-{suffix}"
 
 
-def submit(blob_url, display_name):
+def submit(blob_url, display_name, instance_id):
     locales = [item.strip() for item in os.environ.get("SPEECH_LOCALES", "en-US").split(",")]
     properties = {
         "diarization": {"enabled": True, "maxSpeakers": int(os.environ.get("MAX_SPEAKERS", "10"))},
@@ -55,11 +60,13 @@ def submit(blob_url, display_name):
         properties["languageIdentification"] = {"candidateLocales": locales, "mode": "Single"}
     payload = {
         "contentUrls": [blob_url],
+        "customProperties": {"durableInstanceId": instance_id},
         "displayName": display_name,
         "locale": locales[0],
         "properties": properties,
     }
     job = _request("POST", _api_url("/speechtotext/transcriptions:submit"), payload)
+    job["customProperties"] = payload["customProperties"]
     job["displayName"] = display_name
     if "id" not in job:
         job["id"] = job["self"].split("?", 1)[0].rsplit("/", 1)[-1]
@@ -78,3 +85,27 @@ def result(job):
     transcript = next(item for item in files["values"] if item["kind"] == "Transcription")
     client = BlobClient.from_blob_url(transcript["links"]["contentUrl"], credential=_credential())
     return json.loads(client.download_blob().readall())
+
+
+def register_webhook(web_url, secret):
+    hooks = _request("GET", _management_url("/webhooks"))
+    for hook in hooks.get("values", []):
+        if hook.get("displayName") == "ATS transcription completion":
+            if hook.get("status") == "Succeeded" and hook.get("webUrl") == web_url:
+                return hook
+            _request(
+                "DELETE",
+                _management_url(
+                    f"/webhooks/{hook['self'].split('?', 1)[0].rsplit('/', 1)[-1]}"
+                ),
+            )
+    return _request(
+        "POST",
+        _management_url("/webhooks"),
+        {
+            "displayName": "ATS transcription completion",
+            "events": {"transcriptionCompletion": True},
+            "properties": {"secret": secret},
+            "webUrl": web_url,
+        },
+    )

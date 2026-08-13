@@ -10,7 +10,7 @@ This implementation mirrors the committed AWS pipeline without creating or manag
 | S3 event + SQS/DLQ | Event Grid + Queue Storage | At-least-once delivery; Functions creates `audio-to-transcribe-poison` after three failed dequeues. |
 | Lambda | Functions Flex Consumption | Python 3.12, scale-to-zero, no always-ready instances. |
 | Transcribe | Azure AI Speech batch transcription | Entra ID authentication, diarization, language candidates, BYOS results. |
-| Step Functions | Durable Functions | Durable timers poll Speech every ten minutes without a running worker. |
+| Step Functions | Durable Functions | A signed Speech webhook raises a Durable external event when transcription completes. |
 | DynamoDB on-demand | Table Storage | Stores the small job-reporting dataset. |
 | Secrets Manager | Key Vault | Optional webhook URLs. |
 | SNS notifications | Function activities + webhooks | Teams and Slack are implemented; see choices below for email/fan-out. |
@@ -40,6 +40,8 @@ Audio submitted with speaker diarization must be mono. Before creating a Speech 
 The generated DOCX appears under a date prefix in the private `download` container. Invoke the function-authenticated `POST /api/reports/export` endpoint to create `download/export/transcribe_jobs.csv`.
 
 When Azure Speech reports a successful transcription, the source blob is deleted from `upload` before DOCX generation. Rejected, failed, and timed-out uploads remain available for diagnosis until the storage lifecycle policy removes them.
+
+Speech webhook payloads are authenticated with HMAC-SHA256 using a generated secret in Key Vault. The Function managed identity creates or repairs the resource-wide webhook registration before submitting a transcription, and the job's custom properties route the terminal event to its Durable orchestration. There is no recurring Speech status poll.
 
 Each transcription job appends a zero-padded eight-digit random integer to the sanitized source filename. Resubmitting a filename therefore creates distinct Speech jobs, DOCX blobs, notifications, and jobs-table rows.
 
