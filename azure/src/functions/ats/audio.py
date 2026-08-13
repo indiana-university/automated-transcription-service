@@ -13,6 +13,7 @@ PREFLIGHTABLE_EXTENSIONS = {
     ".aac",
     ".flac",
     ".mp3",
+    ".mp4",
     ".ogg",
     ".opus",
     ".speex",
@@ -33,7 +34,7 @@ def inspect_header(name, content, size):
             "valid": False,
             "reason": (
                 f"Unsupported or unverifiable audio format '{extension or '(none)'}'. "
-                "Use mono WAV, FLAC, MP3, OGG, Opus, WMA, AAC, or Speex audio."
+                "Use mono WAV, FLAC, MP3, MP4, OGG, Opus, WMA, AAC, or Speex audio."
             ),
         }
     if size == 0:

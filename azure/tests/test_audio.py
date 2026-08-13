@@ -1,6 +1,8 @@
 from io import BytesIO
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 import wave
 
 
@@ -42,6 +44,21 @@ def test_rejects_stereo_audio_before_speech():
     assert result["reason"] == (
         "Speaker diarization requires mono audio; this file has 2 channels."
     )
+
+
+def test_accepts_mono_mp4():
+    metadata = SimpleNamespace(channels=1, samplerate=32_000)
+
+    with patch("ats.audio.TinyTag.get", return_value=metadata) as get_metadata:
+        result = inspect_header("recording.mp4", b"mp4 content", 11)
+
+    assert result == {
+        "valid": True,
+        "channels": 1,
+        "format": "mp4",
+        "sample_rate": 32_000,
+    }
+    get_metadata.assert_called_once()
 
 
 def test_rejects_unverifiable_format():

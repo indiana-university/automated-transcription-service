@@ -35,7 +35,7 @@ $account = terraform output -raw storage_account_name
 az storage blob upload --auth-mode login --account-name $account --container-name upload --file interview.wav --name interview.wav
 ```
 
-Audio submitted with speaker diarization must be mono. Before creating a Speech job, the first Durable activity reads at most 1 MiB of blob metadata and rejects empty, corrupt, unsupported, unverifiable, or multichannel files. Preflight supports WAV, FLAC, MP3, OGG, Opus, WMA, AAC, and Speex. Normalize rejected stereo recordings to mono before uploading them again. The smoke test used the repository's linked sample converted to a 48 kHz mono FLAC file.
+Audio submitted with speaker diarization must be mono. Before creating a Speech job, the first Durable activity reads at most 1 MiB of blob metadata and rejects empty, corrupt, unsupported, unverifiable, or multichannel files. Preflight supports WAV, FLAC, MP3, MP4, OGG, Opus, WMA, AAC, and Speex. An MP4 is accepted only when its audio metadata and mono channel count can be verified. Normalize rejected stereo recordings to mono before uploading them again. The smoke test used the repository's linked sample converted to a 48 kHz mono FLAC file.
 
 The generated DOCX appears under a date prefix in the private `download` container. Invoke the function-authenticated `POST /api/reports/export` endpoint to create `download/export/transcribe_jobs.csv`.
 
