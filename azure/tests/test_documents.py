@@ -1,6 +1,9 @@
+from io import BytesIO
 import sys
 from pathlib import Path
 from zipfile import ZipFile
+
+from docx import Document
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src" / "functions"))
 
@@ -89,3 +92,64 @@ def test_docx_channel_fallback_is_one_based():
     with ZipFile(__import__("io").BytesIO(content)) as archive:
         xml = archive.read("word/document.xml").decode("utf-8")
     assert "Channel 1" in xml
+
+
+def test_docx_merges_contiguous_phrases_from_same_speaker():
+    phrases = [
+        {
+            "recognitionStatus": "Success",
+            "speaker": 1,
+            "offsetInTicks": 2_800_000,
+            "durationInTicks": 19_200_000,
+            "nBest": [{"confidence": 0.95, "display": "Hello, my name is Charlie Duke."}],
+        },
+        {
+            "recognitionStatus": "Success",
+            "speaker": 1,
+            "offsetInTicks": 24_800_000,
+            "durationInTicks": 62_800_000,
+            "nBest": [{"confidence": 0.95, "display": "I was born in Charlotte."}],
+        },
+    ]
+
+    content, _ = create_docx({"recognizedPhrases": phrases}, "interview")
+    transcript = [
+        paragraph.text
+        for paragraph in Document(BytesIO(content)).paragraphs
+        if paragraph.text.startswith("[")
+    ]
+
+    assert transcript == [
+        "[00:00:00] Speaker 1: Hello, my name is Charlie Duke. I was born in Charlotte."
+    ]
+
+
+def test_docx_starts_new_segment_after_two_second_pause():
+    phrases = [
+        {
+            "recognitionStatus": "Success",
+            "speaker": 1,
+            "offsetInTicks": 0,
+            "durationInTicks": 10_000_000,
+            "nBest": [{"confidence": 0.95, "display": "First phrase."}],
+        },
+        {
+            "recognitionStatus": "Success",
+            "speaker": 1,
+            "offsetInTicks": 30_000_000,
+            "durationInTicks": 10_000_000,
+            "nBest": [{"confidence": 0.95, "display": "Second phrase."}],
+        },
+    ]
+
+    content, _ = create_docx({"recognizedPhrases": phrases}, "interview")
+    transcript = [
+        paragraph.text
+        for paragraph in Document(BytesIO(content)).paragraphs
+        if paragraph.text.startswith("[")
+    ]
+
+    assert transcript == [
+        "[00:00:00] Speaker 1: First phrase.",
+        "[00:00:03] Speaker 1: Second phrase.",
+    ]
