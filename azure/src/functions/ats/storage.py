@@ -3,9 +3,10 @@ import os
 from datetime import datetime, timezone
 from io import StringIO
 
+from azure.core.exceptions import ResourceNotFoundError
 from azure.data.tables import TableClient
 from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobClient, BlobServiceClient
 
 
 def credential():
@@ -22,6 +23,14 @@ def save_document(job_name, content):
     client = blob_service().get_blob_client(container, key)
     client.upload_blob(content, overwrite=True)
     return client.url
+
+
+def delete_upload(blob_url):
+    client = BlobClient.from_blob_url(blob_url, credential=credential())
+    try:
+        client.delete_blob()
+    except ResourceNotFoundError:
+        pass
 
 
 def record_job(job_name, summary, document_url):

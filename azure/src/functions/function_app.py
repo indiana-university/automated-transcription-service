@@ -45,6 +45,7 @@ def transcription_orchestrator(context: df.DurableOrchestrationContext):
     while context.current_utc_datetime < deadline:
         state = yield context.call_activity("get_transcription_status", job)
         if state == "Succeeded":
+            yield context.call_activity("delete_upload", source)
             result = yield context.call_activity("finish_transcription", job)
             yield context.call_activity(
                 "send_notification",
@@ -101,6 +102,11 @@ def finish_transcription(job):
     url = storage.save_document(name, content)
     storage.record_job(name, summary, url)
     return {"job": name, "url": url, **summary}
+
+
+@app.activity_trigger(input_name="source")
+def delete_upload(source):
+    storage.delete_upload(source["blob_url"])
 
 
 @app.activity_trigger(input_name="message")

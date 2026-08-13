@@ -39,6 +39,8 @@ Audio submitted with speaker diarization must be mono. Before creating a Speech 
 
 The generated DOCX appears under a date prefix in the private `download` container. Invoke the function-authenticated `POST /api/reports/export` endpoint to create `download/export/transcribe_jobs.csv`.
 
+When Azure Speech reports a successful transcription, the source blob is deleted from `upload` before DOCX generation. Rejected, failed, and timed-out uploads remain available for diagnosis until the storage lifecycle policy removes them.
+
 ## Security and serverless characteristics
 
 - The Function app uses Flex Consumption with zero always-ready instances. There are no VM, VM scale set, AKS, App Service Dedicated, or Premium plan resources.

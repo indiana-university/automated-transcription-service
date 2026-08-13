@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -67,3 +68,33 @@ def test_orchestrator_does_not_submit_rejected_audio():
         call.args[0] == "submit_transcription"
         for call in context.call_activity.call_args_list
     )
+
+
+def test_orchestrator_deletes_upload_when_speech_succeeds():
+    source = {"blob_url": "https://example.test/upload/sample.ogg"}
+    context = SimpleNamespace(
+        current_utc_datetime=datetime(2026, 8, 13, tzinfo=timezone.utc),
+        get_input=Mock(return_value=source),
+        call_activity=Mock(side_effect=lambda name, value: (name, value)),
+    )
+    orchestrator = (
+        orchestrator_builder._function.get_user_function().__closure__[0].cell_contents
+    )
+    workflow = orchestrator(context)
+
+    assert next(workflow) == ("validate_audio", source)
+    assert workflow.send({"valid": True}) == ("submit_transcription", source)
+    job = {"id": "job-id", "displayName": "sample.ogg"}
+    assert workflow.send(job) == ("get_transcription_status", job)
+    assert workflow.send("Succeeded") == ("delete_upload", source)
+    assert workflow.send(None) == ("finish_transcription", job)
+    result = {"job": "sample.ogg", "url": "https://example.test/download/sample.ogg.docx"}
+    notification = workflow.send(result)
+    assert notification[0] == "send_notification"
+    assert notification[1]["subject"] == "Transcription job completed"
+    try:
+        workflow.send(None)
+    except StopIteration as completed:
+        assert completed.value == result
+    else:
+        raise AssertionError("Successful orchestration did not complete")
