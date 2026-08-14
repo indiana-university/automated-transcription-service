@@ -128,6 +128,9 @@ blob_data_contributor_group_object_ids = [
 ]
 ```
 
+> [!NOTE]
+> Resolve a Microsoft Entra group object ID from its display name with `az ad group show --group "Group Display Name" --query id --output tsv`.
+
 Terraform packages and deploys the Function app. Upload audio with Entra ID credentials, for example:
 
 ```powershell
