@@ -1,0 +1,6 @@
+resource_group_name  = "ats-terraform-state-rg"
+storage_account_name = "replace-with-state-storage-account"
+container_name       = "tfstate"
+key                  = "azure-serverless.tfstate"
+use_azuread_auth     = true
+use_cli              = true

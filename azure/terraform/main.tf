@@ -1,5 +1,8 @@
 terraform {
   required_version = ">= 1.5.7"
+
+  backend "azurerm" {}
+
   required_providers {
     archive = {
       source  = "hashicorp/archive"

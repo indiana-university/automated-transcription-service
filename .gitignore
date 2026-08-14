@@ -145,6 +145,7 @@ crash.log
 #
 # example.tfvars
 *.auto.tfvars
+backend.hcl
 
 # Ignore override files as they are usually used to override resources locally and so
 # are not checked in

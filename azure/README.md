@@ -18,12 +18,101 @@ This implementation mirrors the committed AWS pipeline without creating or manag
 
 ## Deploy
 
-Prerequisites are Terraform 1.5.7 or newer, an Azure subscription, and an authenticated Azure CLI session. The deploying identity needs permission to create resources and role assignments.
+Prerequisites are Terraform 1.5.7 or newer, an Azure subscription, and an authenticated Azure CLI session. The deploying identity needs permission to create resources and role assignments. Confirm that Azure CLI is using the intended subscription before continuing:
+
+```powershell
+az account show --query "{subscription:name, subscriptionId:id, tenantId:tenantId}" --output table
+```
+
+### Create the remote state backend
+
+Create a dedicated resource group, storage account, and private blob container before deploying the application. This storage is intentionally separate from the application stack so that destroying or repairing the application cannot remove its own Terraform state. Storage account names are globally unique; retain the generated name for the backend configuration.
+
+```powershell
+$stateLocation = "eastus"
+$stateResourceGroup = "ats-terraform-state-rg"
+$stateContainer = "tfstate"
+$stateStorageAccount = "atstfstate$(Get-Random -Minimum 10000000 -Maximum 99999999)"
+$deployerObjectId = az ad signed-in-user show --query id --output tsv
+
+az group create `
+  --name $stateResourceGroup `
+  --location $stateLocation `
+  --output none
+
+az storage account create `
+  --name $stateStorageAccount `
+  --resource-group $stateResourceGroup `
+  --location $stateLocation `
+  --kind StorageV2 `
+  --sku Standard_LRS `
+  --https-only true `
+  --min-tls-version TLS1_2 `
+  --allow-blob-public-access false `
+  --output none
+
+az storage container-rm create `
+  --name $stateContainer `
+  --storage-account $stateStorageAccount `
+  --resource-group $stateResourceGroup `
+  --public-access off `
+  --output none
+
+$stateAccountId = az storage account show `
+  --name $stateStorageAccount `
+  --resource-group $stateResourceGroup `
+  --query id `
+  --output tsv
+$stateContainerId = "$stateAccountId/blobServices/default/containers/$stateContainer"
+
+az role assignment create `
+  --assignee-object-id $deployerObjectId `
+  --assignee-principal-type User `
+  --role "Storage Blob Data Contributor" `
+  --scope $stateContainerId `
+  --output none
+
+az storage account blob-service-properties update `
+  --account-name $stateStorageAccount `
+  --resource-group $stateResourceGroup `
+  --enable-versioning true `
+  --enable-delete-retention true `
+  --delete-retention-days 30 `
+  --enable-container-delete-retention true `
+  --container-delete-retention-days 30 `
+  --output none
+
+$stateStorageAccount
+```
+
+The commands grant the signed-in user access to state. Grant the same `Storage Blob Data Contributor` role on the container to every deployment or CI identity that will run Terraform. Azure role assignments can take several minutes to propagate.
+
+Copy the backend template and replace its storage account placeholder with the name printed by the preceding commands:
 
 ```powershell
 cd azure/terraform
+Copy-Item backend.hcl.template backend.hcl
+notepad backend.hcl
+```
+
+For a new deployment with no existing state, initialize the remote backend:
+
+```powershell
+terraform init -backend-config=backend.hcl
+```
+
+For an existing deployment currently using local state, migrate that state instead. Review the backend values carefully and answer `yes` when Terraform asks to copy the existing state:
+
+```powershell
+terraform init -migrate-state -backend-config=backend.hcl
+```
+
+Do not delete a local state file until `terraform plan` succeeds against the remote backend. The state blob is encrypted at rest, versioned, soft-deleted for 30 days, and automatically locked by the AzureRM backend during state-changing Terraform operations.
+
+### Deploy the application
+
+```powershell
 Copy-Item ats.auto.tfvars.template ats.auto.tfvars
-terraform init
 terraform plan
 terraform apply
 ```
