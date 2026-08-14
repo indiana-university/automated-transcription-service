@@ -57,7 +57,12 @@ def submit(blob_url, display_name, instance_id):
         "displayFormWordLevelTimestampsEnabled": True,
     }
     if len(locales) > 1:
-        properties["languageIdentification"] = {"candidateLocales": locales, "mode": "Single"}
+        properties["languageIdentification"] = {
+            "candidateLocales": locales,
+            "mode": os.environ.get(
+                "SPEECH_LANGUAGE_IDENTIFICATION_MODE", "Continuous"
+            ),
+        }
     payload = {
         "contentUrls": [blob_url],
         "customProperties": {"durableInstanceId": instance_id},

@@ -128,6 +128,7 @@ resource "azapi_resource" "function_app_settings" {
       SPEECH_ENDPOINT                         = azurerm_cognitive_account.speech.endpoint
       SPEECH_API_VERSION                      = "2025-10-15"
       SPEECH_LOCALES                          = join(",", var.speech_locales)
+      SPEECH_LANGUAGE_IDENTIFICATION_MODE     = var.speech_language_identification_mode
       SPEECH_WEBHOOK_URL                      = "https://${azapi_resource.function_app.name}.azurewebsites.net/api/speech/webhook"
       MAX_SPEAKERS                            = tostring(var.max_speakers)
       CONFIDENCE                              = tostring(var.confidence_score)

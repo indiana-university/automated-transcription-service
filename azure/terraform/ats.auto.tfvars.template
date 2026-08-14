@@ -1,10 +1,11 @@
-location              = "eastus"
-prefix                = "ats"
-retention_days        = 30
-confidence_score      = 90
-document_title        = "Transcription Results"
-speech_locales        = ["en-US"]
-max_speakers          = 10
+location                            = "eastus"
+prefix                              = "ats"
+retention_days                      = 30
+confidence_score                    = 90
+document_title                      = "Transcription Results"
+speech_locales                      = ["en-US", "es-US", "de-DE"]
+speech_language_identification_mode = "Continuous"
+max_speakers                        = 10
 
 # Optional; these values also remain in Terraform state.
 # teams_webhook = "https://..."

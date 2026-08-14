@@ -26,6 +26,8 @@ def test_job_name_zero_pads_suffix():
 
 def test_submit_derives_id_from_self_url_and_preserves_unique_name(monkeypatch):
     monkeypatch.setenv("SPEECH_ENDPOINT", "https://eastus.api.cognitive.microsoft.com")
+    monkeypatch.setenv("SPEECH_LOCALES", "en-US,de-DE")
+    monkeypatch.setenv("SPEECH_LANGUAGE_IDENTIFICATION_MODE", "Continuous")
     response = {
         "self": "https://eastus.api.cognitive.microsoft.com/speechtotext/transcriptions/job-id?api-version=2025-10-15",
         "displayName": "service-value",
@@ -43,6 +45,10 @@ def test_submit_derives_id_from_self_url_and_preserves_unique_name(monkeypatch):
     assert job["displayName"] == "sample.ogg-48372615"
     assert request.call_args.args[2]["displayName"] == job["displayName"]
     assert job["customProperties"] == {"durableInstanceId": "instance-id"}
+    assert request.call_args.args[2]["properties"]["languageIdentification"] == {
+        "candidateLocales": ["en-US", "de-DE"],
+        "mode": "Continuous",
+    }
 
 
 def test_register_webhook_replaces_existing_registration(monkeypatch):
