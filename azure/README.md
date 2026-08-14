@@ -117,6 +117,8 @@ terraform plan
 terraform apply
 ```
 
+The generated application resource group is dedicated to this deployment. Do not add unrelated resources to it: `terraform destroy` is configured to remove the entire group, including monitoring artifacts that Azure creates automatically outside Terraform state.
+
 Terraform packages and deploys the Function app. Upload audio with Entra ID credentials, for example:
 
 ```powershell

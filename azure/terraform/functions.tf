@@ -100,16 +100,12 @@ resource "azapi_resource" "function_app" {
   depends_on = [azurerm_role_assignment.function_keyvault, azurerm_role_assignment.function_speech, azurerm_role_assignment.function_speech_webhooks, azurerm_role_assignment.function_storage, azurerm_role_assignment.speech_storage]
 }
 
-resource "azapi_resource" "function_app_settings" {
+resource "azapi_update_resource" "function_app_settings" {
   type      = "Microsoft.Web/sites/config@2024-04-01"
   name      = "appsettings"
   parent_id = azapi_resource.function_app.id
 
   ignore_missing_property = true
-
-  lifecycle {
-    ignore_changes = [tags]
-  }
 
   body = {
     properties = {
@@ -140,16 +136,12 @@ resource "azapi_resource" "function_app_settings" {
   }
 }
 
-resource "azapi_resource" "function_scm_basic_auth" {
+resource "azapi_update_resource" "function_scm_basic_auth" {
   type      = "Microsoft.Web/sites/basicPublishingCredentialsPolicies@2024-04-01"
   name      = "scm"
   parent_id = azapi_resource.function_app.id
 
   ignore_missing_property = true
-
-  lifecycle {
-    ignore_changes = [tags]
-  }
 
   body = {
     properties = {
