@@ -119,7 +119,7 @@ terraform apply
 
 The generated application resource group is dedicated to this deployment. Do not add unrelated resources to it: `terraform destroy` is configured to remove the entire group, including monitoring artifacts that Azure creates automatically outside Terraform state.
 
-The deploying identity receives read/write blob access to the private `upload` and `download` containers and read access to the `jobs` table. To grant the same access to Microsoft Entra groups, populate `blob_data_contributor_group_object_ids` in `ats.auto.tfvars` with group object IDs, not display names. Management-plane `Owner` and `Contributor` assignments alone do not grant storage data access. For example:
+The deploying identity receives read/write blob access to the private `upload` and `download` containers and read access to all tables in the ATS storage account. To grant the same access to Microsoft Entra groups, populate `blob_data_contributor_group_object_ids` in `ats.auto.tfvars` with group object IDs, not display names. The table role is assigned at storage-account scope and inherited by every table in that account. Management-plane `Owner` and `Contributor` assignments alone do not grant storage data access. For example:
 
 ```hcl
 blob_data_contributor_group_object_ids = [
@@ -130,6 +130,9 @@ blob_data_contributor_group_object_ids = [
 
 > [!NOTE]
 > Resolve a Microsoft Entra group object ID from its display name with `az ad group show --group "Group Display Name" --query id --output tsv`.
+
+> [!NOTE]
+> Tables other than `jobs` are managed by Durable Functions and can contain orchestration metadata, inputs, and outputs. Treat their schema as an implementation detail and grant this read access only to groups that should be able to inspect operational data.
 
 Terraform packages and deploys the Function app. Upload audio with Entra ID credentials, for example:
 

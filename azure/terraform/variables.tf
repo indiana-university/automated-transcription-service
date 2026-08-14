@@ -94,7 +94,7 @@ variable "max_speakers" {
 variable "blob_data_contributor_group_object_ids" {
   type        = set(string)
   default     = []
-  description = "Microsoft Entra group object IDs granted read/write upload/download blob access and read access to the jobs table."
+  description = "Microsoft Entra group object IDs granted read/write upload/download blob access and read access to all tables in the ATS storage account."
   validation {
     condition = alltrue([
       for object_id in var.blob_data_contributor_group_object_ids :

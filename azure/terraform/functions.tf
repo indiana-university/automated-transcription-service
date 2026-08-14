@@ -163,7 +163,12 @@ resource "terraform_data" "function_code" {
   ]
 
   provisioner "local-exec" {
-    command = "az functionapp deployment source config-zip --resource-group ${azurerm_resource_group.ats.name} --name ${azapi_resource.function_app.name} --src \"${data.archive_file.functions.output_path}\" --build-remote true --timeout 300 --output none"
+    command     = "az functionapp deployment source config-zip --resource-group ${azurerm_resource_group.ats.name} --name ${azapi_resource.function_app.name} --src $env:ATS_FUNCTION_ZIP --build-remote true --timeout 300 --output none"
+    interpreter = ["PowerShell", "-NoProfile", "-Command"]
+
+    environment = {
+      ATS_FUNCTION_ZIP = abspath(data.archive_file.functions.output_path)
+    }
   }
 
   depends_on = [
