@@ -22,6 +22,17 @@ def wave_content(channels):
     return content.getvalue()
 
 
+def mp4_esds_content(channels):
+    def descriptor(tag, payload):
+        return bytes([tag, len(payload)]) + payload
+
+    audio_config = ((2 << 11) | (8 << 7) | (channels << 3)).to_bytes(2, "big")
+    decoder = bytes(13) + descriptor(0x05, audio_config)
+    elementary_stream = b"\x00\x01\x00" + descriptor(0x04, decoder)
+    payload = bytes(4) + descriptor(0x03, elementary_stream)
+    return len(payload + b"esds").to_bytes(4, "big") + b"esds" + payload
+
+
 def test_accepts_mono_audio():
     content = wave_content(1)
 
@@ -47,18 +58,32 @@ def test_rejects_stereo_audio_before_speech():
 
 
 def test_accepts_mono_mp4():
-    metadata = SimpleNamespace(channels=1, samplerate=32_000)
+    metadata = SimpleNamespace(channels=2, samplerate=16_000)
 
     with patch("ats.audio.TinyTag.get", return_value=metadata) as get_metadata:
-        result = inspect_header("recording.mp4", b"mp4 content", 11)
+        content = mp4_esds_content(1)
+        result = inspect_header("recording.mp4", content, len(content))
 
     assert result == {
         "valid": True,
         "channels": 1,
         "format": "mp4",
-        "sample_rate": 32_000,
+        "sample_rate": 16_000,
     }
     get_metadata.assert_called_once()
+
+
+def test_rejects_stereo_mp4_from_aac_configuration():
+    metadata = SimpleNamespace(channels=1, samplerate=16_000)
+
+    with patch("ats.audio.TinyTag.get", return_value=metadata):
+        content = mp4_esds_content(2)
+        result = inspect_header("recording.mp4", content, len(content))
+
+    assert result["valid"] is False
+    assert result["reason"] == (
+        "Speaker diarization requires mono audio; this file has 2 channels."
+    )
 
 
 def test_rejects_unverifiable_format():
