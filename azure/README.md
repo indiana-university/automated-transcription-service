@@ -98,13 +98,13 @@ notepad backend.hcl
 For a new deployment with no existing state, initialize the remote backend:
 
 ```powershell
-terraform init -backend-config=backend.hcl
+terraform init "-backend-config=backend.hcl"
 ```
 
 For an existing deployment currently using local state, migrate that state instead. Review the backend values carefully and answer `yes` when Terraform asks to copy the existing state:
 
 ```powershell
-terraform init -migrate-state -backend-config=backend.hcl
+terraform init -migrate-state "-backend-config=backend.hcl"
 ```
 
 Do not delete a local state file until `terraform plan` succeeds against the remote backend. The state blob is encrypted at rest, versioned, soft-deleted for 30 days, and automatically locked by the AzureRM backend during state-changing Terraform operations.
@@ -118,6 +118,15 @@ terraform apply
 ```
 
 The generated application resource group is dedicated to this deployment. Do not add unrelated resources to it: `terraform destroy` is configured to remove the entire group, including monitoring artifacts that Azure creates automatically outside Terraform state.
+
+The deploying identity receives read/write blob access to the private `upload` and `download` containers. To grant the same access to Microsoft Entra groups, populate `blob_data_contributor_group_object_ids` in `ats.auto.tfvars` with group object IDs, not display names. Management-plane `Owner` and `Contributor` assignments alone do not grant blob data access. For example:
+
+```hcl
+blob_data_contributor_group_object_ids = [
+  "00000000-0000-0000-0000-000000000000",
+  "11111111-1111-1111-1111-111111111111",
+]
+```
 
 Terraform packages and deploys the Function app. Upload audio with Entra ID credentials, for example:
 

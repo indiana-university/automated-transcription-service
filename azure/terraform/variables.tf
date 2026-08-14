@@ -91,6 +91,19 @@ variable "max_speakers" {
   }
 }
 
+variable "blob_data_contributor_group_object_ids" {
+  type        = set(string)
+  default     = []
+  description = "Microsoft Entra group object IDs granted read/write access to upload and download blobs."
+  validation {
+    condition = alltrue([
+      for object_id in var.blob_data_contributor_group_object_ids :
+      can(regex("^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$", object_id))
+    ])
+    error_message = "Each blob data contributor group object ID must be a GUID."
+  }
+}
+
 variable "teams_webhook" {
   type        = string
   default     = ""
