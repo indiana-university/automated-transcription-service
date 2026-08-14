@@ -16,6 +16,12 @@ resource "azurerm_role_assignment" "deployer_download_blobs" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+resource "azurerm_role_assignment" "deployer_jobs_table" {
+  scope                = azapi_resource.jobs.id
+  role_definition_name = "Storage Table Data Reader"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_role_assignment" "group_upload_blobs" {
   for_each = var.blob_data_contributor_group_object_ids
 
@@ -30,6 +36,15 @@ resource "azurerm_role_assignment" "group_download_blobs" {
 
   scope                = azurerm_storage_container.download.id
   role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = each.value
+  principal_type       = "Group"
+}
+
+resource "azurerm_role_assignment" "group_jobs_table" {
+  for_each = var.blob_data_contributor_group_object_ids
+
+  scope                = azapi_resource.jobs.id
+  role_definition_name = "Storage Table Data Reader"
   principal_id         = each.value
   principal_type       = "Group"
 }

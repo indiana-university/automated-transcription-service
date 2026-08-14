@@ -119,7 +119,7 @@ terraform apply
 
 The generated application resource group is dedicated to this deployment. Do not add unrelated resources to it: `terraform destroy` is configured to remove the entire group, including monitoring artifacts that Azure creates automatically outside Terraform state.
 
-The deploying identity receives read/write blob access to the private `upload` and `download` containers. To grant the same access to Microsoft Entra groups, populate `blob_data_contributor_group_object_ids` in `ats.auto.tfvars` with group object IDs, not display names. Management-plane `Owner` and `Contributor` assignments alone do not grant blob data access. For example:
+The deploying identity receives read/write blob access to the private `upload` and `download` containers and read access to the `jobs` table. To grant the same access to Microsoft Entra groups, populate `blob_data_contributor_group_object_ids` in `ats.auto.tfvars` with group object IDs, not display names. Management-plane `Owner` and `Contributor` assignments alone do not grant storage data access. For example:
 
 ```hcl
 blob_data_contributor_group_object_ids = [
@@ -140,7 +140,7 @@ az storage blob upload --auth-mode login --account-name $account --container-nam
 
 Audio submitted with speaker diarization must be mono. Before creating a Speech job, the first Durable activity reads at most 1 MiB of blob metadata and rejects empty, corrupt, unsupported, unverifiable, or multichannel files. Preflight supports WAV, FLAC, MP3, MP4, OGG, Opus, WMA, AAC, and Speex. An MP4 is accepted only when its audio metadata and mono channel count can be verified. Normalize rejected stereo recordings to mono before uploading them again. The smoke test used the repository's linked sample converted to a 48 kHz mono FLAC file.
 
-The generated DOCX appears under a date prefix in the private `download` container. Invoke the function-authenticated `POST /api/reports/export` endpoint to create `download/export/transcribe_jobs.csv`.
+The generated DOCX appears under a date prefix in the private `download` container. The `jobs` table receives its reporting row only after processing completes; use the Function app's Durable Functions and Application Insights views for an active job. Invoke the function-authenticated `POST /api/reports/export` endpoint to create `download/export/transcribe_jobs.csv`.
 
 When Azure Speech reports a successful transcription, the source blob is deleted from `upload` before DOCX generation. Rejected, failed, and timed-out uploads remain available for diagnosis until the storage lifecycle policy removes them.
 

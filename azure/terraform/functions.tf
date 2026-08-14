@@ -155,3 +155,20 @@ resource "azurerm_role_assignment" "function_deployment_storage" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azapi_resource.function_app.identity[0].principal_id
 }
+
+resource "terraform_data" "function_code" {
+  triggers_replace = [
+    data.archive_file.functions.output_base64sha256,
+    azapi_resource.function_app.id,
+  ]
+
+  provisioner "local-exec" {
+    command = "az functionapp deployment source config-zip --resource-group ${azurerm_resource_group.ats.name} --name ${azapi_resource.function_app.name} --src \"${data.archive_file.functions.output_path}\" --build-remote true --timeout 300 --output none"
+  }
+
+  depends_on = [
+    azapi_update_resource.function_app_settings,
+    azapi_update_resource.function_scm_basic_auth,
+    azurerm_role_assignment.function_deployment_storage,
+  ]
+}
