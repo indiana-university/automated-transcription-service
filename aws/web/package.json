@@ -1,0 +1,23 @@
+{
+  "name": "ats-storage-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Storage Browser for S3 web app for the Automated Transcription Service",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@aws-amplify/ui-react": "^6.15.4",
+    "@aws-amplify/ui-react-storage": "^3.17.3",
+    "aws-amplify": "^6.18.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
+    "vite": "^8.1.4"
+  }
+}

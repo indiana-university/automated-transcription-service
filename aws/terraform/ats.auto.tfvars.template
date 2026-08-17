@@ -14,3 +14,14 @@ teams_notification = false #Whether to send a notification to Teams when a trans
 slack_notification = false #Whether to send a notification to Slack when a transcription is completed
 python_version     = "3.13" #Python version for Lambda functions
 document_title     = "Transcription Results" #Title of the document
+
+# --- Storage Browser web app (optional, off by default; sign-in is OIDC SSO only) ---
+enable_storage_browser = false #Set true to deploy the Storage Browser UI + Cognito + CloudFront
+oidc_issuer_url        = ""    #IdP OIDC issuer URL; REQUIRED when enable_storage_browser is true
+oidc_client_id         = ""    #Client ID from registering the app with the IdP; REQUIRED when enabled
+oidc_client_secret     = ""    #Client secret from the IdP; REQUIRED when enabled (git-ignored file; also lands in TF state)
+oidc_provider_name     = "SSO" #Display name of the OIDC provider in Cognito
+cognito_domain_prefix  = ""    #Globally unique Cognito hosted-domain prefix; blank derives "<prefix>-storage-browser"
+webapp_domain          = ""    #Optional custom domain; blank uses the default CloudFront URL
+acm_certificate_arn    = ""    #ACM cert ARN in us-east-1; required only if webapp_domain is set
+webapp_dev_origins     = []    #Extra CORS + sign-in redirect origins for local dev, e.g. ["http://localhost:5173"]
