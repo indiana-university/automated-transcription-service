@@ -7,7 +7,7 @@ from azure.core.exceptions import ResourceNotFoundError
 FUNCTIONS_ROOT = Path(__file__).parents[1] / "src" / "functions"
 sys.path.insert(0, str(FUNCTIONS_ROOT))
 
-from ats import storage
+from ats import storage  # noqa: E402
 
 
 def test_delete_upload_uses_blob_url_and_managed_identity():
