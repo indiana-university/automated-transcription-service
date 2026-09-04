@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: "docker"
+    directory: "/aws/src/lambda"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "pip"
+    directory: "/aws/src/lambda"
+    schedule:
+      interval: "daily"
